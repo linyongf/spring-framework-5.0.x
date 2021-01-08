@@ -11,6 +11,6 @@ fun ScriptTemplateWithBindings.include(path: String) =
 fun ScriptTemplateWithBindings.i18n(code: String) =
 	(bindings["i18n"] as (String) -> String).invoke(code)
 
-var ScriptTemplateWithBindings.foo: String
-	get() = bindings["foo"] as String
-	set(value) { throw UnsupportedOperationException() }
+//var ScriptTemplateWithBindings.foo: String
+//	get() = bindings["foo"] as String
+//	set(value) { throw UnsupportedOperationException() }
