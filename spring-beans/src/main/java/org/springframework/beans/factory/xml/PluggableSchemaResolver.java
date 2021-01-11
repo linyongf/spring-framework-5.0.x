@@ -16,23 +16,22 @@
 
 package org.springframework.beans.factory.xml;
 
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.xml.sax.EntityResolver;
-import org.xml.sax.InputSource;
-
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PropertiesLoaderUtils;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
+import org.xml.sax.EntityResolver;
+import org.xml.sax.InputSource;
+
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * {@link EntityResolver} implementation that attempts to resolve schema URLs into
@@ -104,6 +103,13 @@ public class PluggableSchemaResolver implements EntityResolver {
 	}
 
 
+	/**
+	 * 默认到 META-INF/Spring.schemas 文件中找到systemId 所对应的XSD文件并加载
+	 * @param publicId
+	 * @param systemId
+	 * @return
+	 * @throws IOException
+	 */
 	@Override
 	@Nullable
 	public InputSource resolveEntity(@Nullable String publicId, @Nullable String systemId) throws IOException {

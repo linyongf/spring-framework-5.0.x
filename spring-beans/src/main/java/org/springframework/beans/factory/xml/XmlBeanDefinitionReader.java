@@ -264,6 +264,7 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
 				this.entityResolver = new ResourceEntityResolver(resourceLoader);
 			}
 			else {
+				// 默认进入这里
 				this.entityResolver = new DelegatingEntityResolver(getBeanClassLoader());
 			}
 		}
@@ -520,9 +521,14 @@ public class XmlBeanDefinitionReader extends AbstractBeanDefinitionReader {
 	 * @see BeanDefinitionDocumentReader#registerBeanDefinitions
 	 */
 	public int registerBeanDefinitions(Document doc, Resource resource) throws BeanDefinitionStoreException {
+		// 使用 DefaultBeanDefinitionDocumentReader 实例化 BeanDefinitionDocumentReader
 		BeanDefinitionDocumentReader documentReader = createBeanDefinitionDocumentReader();
+		// 在实例化 BeanDefinitionReader 时会将 BeanDefinitionRegistry 传入，默认使用继承自DefaultListableBeanFactory 的子类
+		// 记录统计前 BeanDefinition 的加载个数
 		int countBefore = getRegistry().getBeanDefinitionCount();
+		// ***************加载及注册 bean **************
 		documentReader.registerBeanDefinitions(doc, createReaderContext(resource));
+		// 记录本次加载的 BeanDefinition 个数
 		return getRegistry().getBeanDefinitionCount() - countBefore;
 	}
 
