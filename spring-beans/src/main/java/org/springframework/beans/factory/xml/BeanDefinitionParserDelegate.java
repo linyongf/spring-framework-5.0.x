@@ -803,6 +803,13 @@ public class BeanDefinitionParserDelegate {
 
 	/**
 	 * Parse a constructor-arg element.
+	 * 无论配置中是否指定了 index 属性，操作步骤都有三步，而且前两步都一样
+	 * 1. 解析 constructor-arg 的子元素
+	 * 2. 使用 ConstructorArgumentValues.ValueHolder 类型来封装解析出来的元素
+	 * 3. 将 type、name 和 index 属性一并封装在 ConstructorArgumentValues.ValueHolder 类型中，
+	 * 	  并添加至当前 BeanDefinition 的 constructorArgumentValues 的
+	 * 	  indexedArgumentValues 属性中(若指定了 index 属性)；
+	 * 	  genericArgumentValues 属性中(若未指定 index 属性)
 	 */
 	public void parseConstructorArgElement(Element ele, BeanDefinition bd) {
 		// 解析 index 属性
@@ -948,11 +955,13 @@ public class BeanDefinitionParserDelegate {
 				"<property> element for property '" + propertyName + "'" :
 				"<constructor-arg> element");
 
+		// 一个属性只能对应一种类型：ref, value, list 等，且只能有一个子元素
 		// Should only have one child element: ref, value, list, etc.
 		NodeList nl = ele.getChildNodes();
 		Element subElement = null;
 		for (int i = 0; i < nl.getLength(); i++) {
 			Node node = nl.item(i);
+			// 对应 description 或者 meta 不处理
 			if (node instanceof Element && !nodeNameEquals(node, DESCRIPTION_ELEMENT) &&
 					!nodeNameEquals(node, META_ELEMENT)) {
 				// Child element is what we're looking for.
@@ -965,6 +974,7 @@ public class BeanDefinitionParserDelegate {
 			}
 		}
 
+		// 解析 construct-arg 上的 ref 属性
 		boolean hasRefAttribute = ele.hasAttribute(REF_ATTRIBUTE);
 		boolean hasValueAttribute = ele.hasAttribute(VALUE_ATTRIBUTE);
 		if ((hasRefAttribute && hasValueAttribute) ||
