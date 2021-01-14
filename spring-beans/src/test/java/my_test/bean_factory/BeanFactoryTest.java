@@ -1,4 +1,4 @@
-package my_test;
+package my_test.bean_factory;
 
 import org.junit.Test;
 import org.springframework.beans.factory.BeanFactory;
@@ -11,7 +11,7 @@ public class BeanFactoryTest {
 
 	@Test
 	public void testSimpleLoad(){
-		BeanFactory beanFactory = new XmlBeanFactory(new ClassPathResource("my_test/beanFactoryTest.xml"));
+		BeanFactory beanFactory = new XmlBeanFactory(new ClassPathResource("my_test/bean_factory/beanFactoryTest.xml"));
 		MyTestBean bean = (MyTestBean) beanFactory.getBean("myTestBean");
 		Assert.hasText("testStr", bean.getTestStr());
 	}

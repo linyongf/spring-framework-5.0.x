@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+	<bean id="getBeanTest" class="my_test.lookup.GetBeanTest">
+		<!--<lookup-method name="getBean" bean="teacher"></lookup-method>-->
+		<lookup-method name="getBean" bean="student"></lookup-method>
+	</bean>
+
+	<bean id="teacher" class="my_test.lookup.Teacher"></bean>
+	<bean id="student" class="my_test.lookup.Student"></bean>
+</beans>

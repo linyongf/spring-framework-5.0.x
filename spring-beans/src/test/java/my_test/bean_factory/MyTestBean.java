@@ -1,4 +1,4 @@
-package my_test;
+package my_test.bean_factory;
 
 public class MyTestBean {
 
