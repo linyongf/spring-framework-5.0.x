@@ -322,12 +322,18 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 	 * and registering it with the registry.
 	 */
 	protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate delegate) {
-		// 1.委托 BeanDefinitionDelegate 类的 parseBeanDefinitionElement 方法进行元素解析，
+		// 1.委托 BeanDefinitionParserDelegate 类的 parseBeanDefinitionElement 方法进行元素解析，
 		// 返回的 BeanDefinitionHolder 类型的实例 bdHolder，经过这个方法后，
 		// bdHolder 实例已经包含我们配置文件中配置的各种属性了，例如： class、name、id、alias 之类的属性
 		BeanDefinitionHolder bdHolder = delegate.parseBeanDefinitionElement(ele);
 		if (bdHolder != null) {
-			// 2.当返回的 bdHolder 不为空时，若存在默认标签的子节点下再有自定义属性，还需要再次对自定义标签进行解析
+			// 2.当返回的 bdHolder 不为空时，若存在默认标签的子节点下有自定义属性，需要对自定义标签进行解析，如：
+			// <bean id="test" class="test.MyClass">
+			// 		<mybean:user username="aaa">
+			// </bean>
+			// 可是，为什么会在默认默认类型标签解析中单独添加一个方法处理自定义类型标签解析？？？
+			// 因为：这个自定义标签不是以 Bean 的形式出现的，其实只是属性
+			// 这里只对自定义的标签或者对bean的自定义属性感兴趣
 			bdHolder = delegate.decorateBeanDefinitionIfRequired(ele, bdHolder);
 			try {
 				// 3.解析完成后，需要对解析后的 bdHolder 进行注册，同样，注册操作委托给了
