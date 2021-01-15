@@ -119,6 +119,13 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 
 	/**
 	 * Register each bean definition within the given root {@code <beans/>} element.
+	 * 与单独的配置文件并没有太大差别，无非是递归调用 beans 的解析过程
+	 * <beans>
+	 * 		<bean id="aa" class="test.aa"/>
+	 * 		<beans>
+	 * 			...
+	 * 		</beans>
+	 * </beans>
 	 */
 	protected void doRegisterBeanDefinitions(Element root) {
 		// Any nested <beans> elements will cause recursion in this method. In
@@ -213,7 +220,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 		else if (delegate.nodeNameEquals(ele, BEAN_ELEMENT)) {
 			processBeanDefinition(ele, delegate);
 		}
-		// 对 beans 标签的处理
+		// 对嵌入式 beans 标签的处理
 		else if (delegate.nodeNameEquals(ele, NESTED_BEANS_ELEMENT)) {
 			// recurse
 			doRegisterBeanDefinitions(ele);
@@ -223,19 +230,27 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 	/**
 	 * Parse an "import" element and load the bean definitions
 	 * from the given resource into the bean factory.
+	 * <beans>
+	 * 		<import resource="customerContext.xml"/>
+	 * 		<import resource="systemContext.xml"/>
+	 * </beans>
 	 */
 	protected void importBeanDefinitionResource(Element ele) {
+		// 获取 resource 属性
 		String location = ele.getAttribute(RESOURCE_ATTRIBUTE);
+		// 如果不存在 resource 属性则不做任何处理
 		if (!StringUtils.hasText(location)) {
 			getReaderContext().error("Resource location must not be empty", ele);
 			return;
 		}
 
+		// 解析系统属性，格式如： "${user.dir}"
 		// Resolve system properties: e.g. "${user.dir}"
 		location = getReaderContext().getEnvironment().resolveRequiredPlaceholders(location);
 
 		Set<Resource> actualResources = new LinkedHashSet<>(4);
 
+		// 判断 location 是绝对 URI 还是相对 URI
 		// Discover whether the location is an absolute or relative URI
 		boolean absoluteLocation = false;
 		try {
@@ -246,6 +261,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 			// unless it is the well-known Spring prefix "classpath*:"
 		}
 
+		// 如果是绝对 URI, 则直接根据地址加载对应的配置文件
 		// Absolute or relative?
 		if (absoluteLocation) {
 			try {
@@ -260,15 +276,19 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 			}
 		}
 		else {
+			// 如果是相对地址，则根据相对地址计算出绝对地址
 			// No URL -> considering resource location as relative to the current file.
 			try {
 				int importCount;
+				// Resource 存在多个实现类，如 VfsResource、 FileSystemResource 等，
+				// 而每个 resource 的 createRelative 实现方式都不一样，所以这里先使用子类的方法尝试解析
 				Resource relativeResource = getReaderContext().getResource().createRelative(location);
 				if (relativeResource.exists()) {
 					importCount = getReaderContext().getReader().loadBeanDefinitions(relativeResource);
 					actualResources.add(relativeResource);
 				}
 				else {
+					// 如果解析不成功，则使用默认的解析器 ResourcePatternResolver 进行解析
 					String baseLocation = getReaderContext().getResource().getURL().toString();
 					importCount = getReaderContext().getReader().loadBeanDefinitions(
 							StringUtils.applyRelativePath(baseLocation, location), actualResources);
@@ -285,14 +305,25 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 						ele, ex);
 			}
 		}
+		// 解析后进行监听器激活处理
 		Resource[] actResArray = actualResources.toArray(new Resource[0]);
 		getReaderContext().fireImportProcessed(location, actResArray, extractSource(ele));
 	}
 
 	/**
 	 * Process the given alias element, registering the alias with the registry.
+	 * 好比一个人有多个名字，一种方式是 bean 标签的 name 可以指定多个别名（中间用逗号分隔），另外一种就是用 alias 标签声明：
+	 * <alias name="testBean" alias="testBean, testBean2"/>
+	 *
+	 * 考虑一个更为具体的例子，组件 A 在 XML 配置文件中定义了一个名为 componentA 的 DataSource 类型的 bean,
+	 * 但组件 B 却想在其 XML 配置文件中以 componentB 命名来引用此 bean,
+	 * 而在主程序 MyApp 的 XML 配置文件中以 myApp 命名来引用此 bean；
+	 * 可以通过分别在配置文件组件 B 和 主程序 MyApp 中加入下列 alias 标签来实现：
+	 * <alias name="componentA" alias="componentB"/>
+	 * <alias name="componentA" alias="myApp"/>
 	 */
 	protected void processAliasRegistration(Element ele) {
+		// 获取 beanName
 		String name = ele.getAttribute(NAME_ATTRIBUTE);
 		String alias = ele.getAttribute(ALIAS_ATTRIBUTE);
 		boolean valid = true;
@@ -346,6 +377,8 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 						bdHolder.getBeanName() + "'", ele, ex);
 			}
 			// 4.最后发出响应事件，通知相关的监听器，这个 bean 已经加载完成了
+			// 这里的实现只为扩展，当程序开发人员需要对注册 BeanDefinition 事件进行监听时
+			// 可以通过注册监听器的方式并将处理逻辑写入监听器中，目前在 Spring 中并没有对此事件做任何逻辑处理。
 			// Send registration event.
 			getReaderContext().fireComponentRegistered(new BeanComponentDefinition(bdHolder));
 		}
