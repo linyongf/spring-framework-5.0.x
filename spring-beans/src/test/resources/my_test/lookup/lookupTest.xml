@@ -9,4 +9,5 @@
 
 	<bean id="teacher" class="my_test.lookup.Teacher"></bean>
 	<bean id="student" class="my_test.lookup.Student"></bean>
+
 </beans>

@@ -510,7 +510,8 @@ public class BeanDefinitionParserDelegate {
 			// <bean id="myTestBean" class="bean.MyTestBean">
 			// 		<meta key="testStr" value="aaaaaa"/>
 			// </bean>
-			// 当需要使用里面属性的时候，可以通过 BeanDefinition 的 getAttribute(key) 方法进行获取
+			// 这段代码并不会体现在 MyTestBean 中，当需要使用里面属性的时候，
+			// 可以通过 BeanDefinition 的 getAttribute(key) 方法进行获取
 			parseMetaElements(ele, bd);
 			// ******解析 lookup-method(获取器注入) 属性*****
 			// 引用 Spring in Action 中的一句话：获取器注入是一种特殊的方法注入，
@@ -1468,6 +1469,9 @@ public class BeanDefinitionParserDelegate {
 	}
 
 	/**
+	 * containingBd 为父类bean, 对顶层元素的解析应设置为null
+	 * 如果要使用自定义标签，其中一项必不可少的操作就是在 Spring.handlers 文件中
+	 * 配置命名空间与命名空间处理器的映射关系。
 	 * Parse a custom element (outside of the default namespace).
 	 * @param ele the element to parse
 	 * @param containingBd the containing bean definition (if any)
@@ -1475,15 +1479,18 @@ public class BeanDefinitionParserDelegate {
 	 */
 	@Nullable
 	public BeanDefinition parseCustomElement(Element ele, @Nullable BeanDefinition containingBd) {
+		// ********* 获取对应的命名空间 **********
 		String namespaceUri = getNamespaceURI(ele);
 		if (namespaceUri == null) {
 			return null;
 		}
+		// ********** 根据命名空间找到对应的 NamespaceHandler ***********
 		NamespaceHandler handler = this.readerContext.getNamespaceHandlerResolver().resolve(namespaceUri);
 		if (handler == null) {
 			error("Unable to locate Spring NamespaceHandler for XML schema namespace [" + namespaceUri + "]", ele);
 			return null;
 		}
+		// ********** 调用自定义的 NamespaceHandler 进行解析
 		return handler.parse(ele, new ParserContext(this.readerContext, this, containingBd));
 	}
 
