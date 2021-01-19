@@ -48,6 +48,9 @@ import org.springframework.lang.Nullable;
 public abstract class AbstractSingleBeanDefinitionParser extends AbstractBeanDefinitionParser {
 
 	/**
+	 * 虽然在示例中我们定义 UserBeanDefinitionParser, 但是在其中我们只是做了与自己业务逻辑相关的部分。
+	 * 我们没做但是不代表没有，在这个处理过程中同样也是按照 Spring 中默认标签的处理方式进行, 包括创建 BeanDefinition
+	 * 以及进行相应默认属性的设置, 对于这些工作 Spring 都默默实现了, 只是暴露出一些接口来供用户实现个性化的业务
 	 * Creates a {@link BeanDefinitionBuilder} instance for the
 	 * {@link #getBeanClass bean Class} and passes it to the
 	 * {@link #doParse} strategy method.
@@ -65,11 +68,13 @@ public abstract class AbstractSingleBeanDefinitionParser extends AbstractBeanDef
 		if (parentName != null) {
 			builder.getRawBeanDefinition().setParentName(parentName);
 		}
+		// 获取自定义标签中的 class, 此时会调用自定义解析器如 UserBeanDefinitionParser 中的 getBeanClass 方法
 		Class<?> beanClass = getBeanClass(element);
 		if (beanClass != null) {
 			builder.getRawBeanDefinition().setBeanClass(beanClass);
 		}
 		else {
+			// 若子类没有重写 getBeanClass 方法, 则尝试检查子类是否重写 getBeanClassName 方法
 			String beanClassName = getBeanClassName(element);
 			if (beanClassName != null) {
 				builder.getRawBeanDefinition().setBeanClassName(beanClassName);
@@ -78,13 +83,16 @@ public abstract class AbstractSingleBeanDefinitionParser extends AbstractBeanDef
 		builder.getRawBeanDefinition().setSource(parserContext.extractSource(element));
 		BeanDefinition containingBd = parserContext.getContainingBeanDefinition();
 		if (containingBd != null) {
+			// 若存在父类则使用父类的 scope 属性
 			// Inner bean definition must receive same scope as containing bean.
 			builder.setScope(containingBd.getScope());
 		}
 		if (parserContext.isDefaultLazyInit()) {
+			// 配置延迟加载
 			// Default-lazy-init applies to custom bean definitions as well.
 			builder.setLazyInit(true);
 		}
+		// ********* 调用子类重写的 doParse 方法进行解析 ***********
 		doParse(element, parserContext, builder);
 		return builder.getBeanDefinition();
 	}
