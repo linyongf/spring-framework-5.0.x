@@ -1700,6 +1700,10 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 	 * 我们得到bean实例后第一步就是调用这个方法来检测以下正确性，
 	 * ☆☆☆☆☆其实就是用于检测当前 bean 是否是 FactoryBean 的 bean, 如果是，那么需要调用该 bean 对应
 	 * FactoryBean 实例中的 getObject 方法作为返回值
+	 * 1.对 FactoryBean 正确性的验证
+	 * 2.对非 FactoryBean 不做任何处理
+	 * 3.对 bean 进行转换
+	 * 4.将从 Factory 中解析 bean 的工作委托给 getObjectFromFactoryBean 方法
 	 * @param beanInstance the shared bean instance
 	 * @param name the name that may include factory dereference prefix
 	 * @param beanName the canonical bean name

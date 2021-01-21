@@ -16,4 +16,8 @@ public class BeanFactoryTest {
 		System.out.println(bean.getTestStr());
 	}
 
+	public static void main(String[] args) {
+		System.out.println("11111");
+	}
+
 }
