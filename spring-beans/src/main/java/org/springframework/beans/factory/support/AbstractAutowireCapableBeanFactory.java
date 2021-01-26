@@ -412,6 +412,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 
 		Object result = existingBean;
 		for (BeanPostProcessor processor : getBeanPostProcessors()) {
+			// ************************
 			Object current = processor.postProcessBeforeInitialization(result, beanName);
 			if (current == null) {
 				return result;
@@ -426,7 +427,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * postProcessAfterInitialization 方法进行处理，因为如果返回的 bean 不为空，那么便不会再次经历普遍 bean
 	 * 的创建
 	 * @param existingBean the existing bean instance
-	 * @param beanName the name of the bean, to be passed to it if necessary
+	 * @param beanName the name  of the bean, to be passed to it if necessary
 	 * (only passed to {@link BeanPostProcessor BeanPostProcessors})
 	 * @return
 	 * @throws BeansException
@@ -1672,6 +1673,10 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * Apply the given property values, resolving any runtime references
 	 * to other beans in this bean factory. Must use deep copy, so we
 	 * don't permanently modify this property.
+	 *
+	 * 程序运行到这里，已经完成了对所有注入属性的获取，但是获取的属性是以 PropertyValues 形式存在的，
+	 * 还并没有应用到已经实例化的 bean 中，这一工作是在 applyPropertyValues 中完成的。
+	 *
 	 * @param beanName the bean name passed for better exception information
 	 * @param mbd the merged bean definition
 	 * @param bw the BeanWrapper wrapping the target object
@@ -1690,9 +1695,10 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		List<PropertyValue> original;
 
 		if (pvs instanceof MutablePropertyValues) {
+			// 如果 mpvs 中的值已经被转换为对应的类型那么可以直接设置到 beanWrapper 中
 			mpvs = (MutablePropertyValues) pvs;
 			if (mpvs.isConverted()) {
-				// Shortcut: use the pre-converted values as-is.
+				// Shortcut(捷径): use the pre-converted values as-is(按原样).
 				try {
 					bw.setPropertyValues(mpvs);
 					return;
@@ -1705,6 +1711,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			original = mpvs.getPropertyValueList();
 		}
 		else {
+			// 如果 pvs 并不是使用 MutablePropertyValues 封装的类型，那么直接使用原始的属性获取方法
 			original = Arrays.asList(pvs.getPropertyValues());
 		}
 
@@ -1712,11 +1719,13 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 		if (converter == null) {
 			converter = bw;
 		}
+		// *********** 获取对应的解析器 **********
 		BeanDefinitionValueResolver valueResolver = new BeanDefinitionValueResolver(this, beanName, mbd, converter);
 
 		// Create a deep copy, resolving any references for values.
 		List<PropertyValue> deepCopy = new ArrayList<>(original.size());
 		boolean resolveNecessary = false;
+		// 遍历属性，将属性转换为对应类的对应属性的类型
 		for (PropertyValue pv : original) {
 			if (pv.isConverted()) {
 				deepCopy.add(pv);
@@ -1724,6 +1733,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			else {
 				String propertyName = pv.getName();
 				Object originalValue = pv.getValue();
+				// ************************
 				Object resolvedValue = valueResolver.resolveValueIfNecessary(pv, originalValue);
 				Object convertedValue = resolvedValue;
 				boolean convertible = bw.isWritableProperty(propertyName) &&
@@ -1786,6 +1796,11 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	/**
 	 * Initialize the given bean instance, applying factory callbacks
 	 * as well as init methods and bean post processors.
+	 *
+	 * 在 bean 配置时 bean 中有一个 init-method 的属性，这个熟悉的作用是在 bean 实例化前调用 init-method 指定的方法
+	 * 来根据用户业务进行相应的实例化。Spring 中程序已经执行过 bean 的实例化，并且进行了属性的填充，而就在这时将会调用
+	 * 用户设定的初始化方法
+	 *
 	 * <p>Called from {@link #createBean} for traditionally defined beans,
 	 * and from {@link #initializeBean} for existing bean instances.
 	 * @param beanName the bean name in the factory (for debugging purposes)
@@ -1803,20 +1818,27 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	protected Object initializeBean(String beanName, Object bean, @Nullable RootBeanDefinition mbd) {
 		if (System.getSecurityManager() != null) {
 			AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+				// **********************
 				invokeAwareMethods(beanName, bean);
 				return null;
 			}, getAccessControlContext());
 		}
 		else {
+			// *********** 对特殊的 bean 处理: Aware、BeanClassLoaderAware、BeanFactoryAware ***********
 			invokeAwareMethods(beanName, bean);
 		}
 
 		Object wrappedBean = bean;
 		if (mbd == null || !mbd.isSynthetic()) {
+			// *********** 应用后处理器 *************
+			// Spring 中有很多的 PostProcessor，当然大部分都是以 BeanPostProcessor 为基础，
+			// 在调用客户自定义初始化方法前以及调用自定义初始化方法后分别会调用 BeanPostProcessor
+			// 的 postProcessorBeforeInitialization 和 postProcessorAfterInitialization
 			wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);
 		}
 
 		try {
+			// *********** 激活用户自定义的 init 方法 **********************
 			invokeInitMethods(beanName, wrappedBean, mbd);
 		}
 		catch (Throwable ex) {
@@ -1825,12 +1847,22 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 					beanName, "Invocation of init method failed", ex);
 		}
 		if (mbd == null || !mbd.isSynthetic()) {
+			// *********** 后处理器应用 ***********
 			wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
 		}
 
 		return wrappedBean;
 	}
 
+	/**
+	 *  Spring 中提供一些 Aware 相关接口，比如：BeanFactoryAware、ApplicationContextAware、ResourceLoaderAware、
+	 *  ServletContextAware 等，实现这些 Aware 接口的 bean 在初始化之后，可以取得一些对应的资源，例如实现
+	 *  BeanFactoryAware 的 bean 在初始化后，Spring 容器将会注入 BeanFactory 的实例，而实现 ApplicationContextAware
+	 *  的bean 初始化后，将会注入 ApplicationContext 的实例等。
+	 *
+	 * @param beanName
+	 * @param bean
+	 */
 	private void invokeAwareMethods(String beanName, Object bean) {
 		if (bean instanceof Aware) {
 			if (bean instanceof BeanNameAware) {
@@ -1853,6 +1885,17 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	 * and a chance to know about its owning bean factory (this object).
 	 * This means checking whether the bean implements InitializingBean or defines
 	 * a custom init method, and invoking the necessary callback(s) if it does.
+	 *
+	 * 激活自定义的 init 方法
+	 *
+	 * 客户定制的初始化方法除了我们熟知的使用配置 init-method 外，还有使自定义的 bean 实现 InitializingBean 接口，
+	 * 并在 afterPropertiesSet 中实现自己的初始化业务逻辑。
+	 *
+	 * init-method 与 afterPropertiesSet 都是在初始化 bean 时执行，执行顺序是 afterPropertiesSet 先执行，而 init-method
+	 * 后执行
+	 *
+	 * 在该方法中就实现了这两个步骤的初始化方法调用
+	 *
 	 * @param beanName the bean name in the factory (for debugging purposes)
 	 * @param bean the new bean instance we may need to initialize
 	 * @param mbd the merged bean definition that the bean was created with
@@ -1863,6 +1906,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	protected void invokeInitMethods(String beanName, Object bean, @Nullable RootBeanDefinition mbd)
 			throws Throwable {
 
+		// 首先会检查是否是 InitializingBean， 如果是的话需要调用 afterPropertiesSet 方法
 		boolean isInitializingBean = (bean instanceof InitializingBean);
 		if (isInitializingBean && (mbd == null || !mbd.isExternallyManagedInitMethod("afterPropertiesSet"))) {
 			if (logger.isDebugEnabled()) {
@@ -1880,6 +1924,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 				}
 			}
 			else {
+				// 属性初始化后的处理
 				((InitializingBean) bean).afterPropertiesSet();
 			}
 		}
@@ -1889,6 +1934,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 			if (StringUtils.hasLength(initMethodName) &&
 					!(isInitializingBean && "afterPropertiesSet".equals(initMethodName)) &&
 					!mbd.isExternallyManagedInitMethod(initMethodName)) {
+				// 调用自定义初始化方法
 				invokeCustomInitMethod(beanName, bean, mbd);
 			}
 		}
