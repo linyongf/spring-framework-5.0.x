@@ -362,7 +362,7 @@ public class DefaultBeanDefinitionDocumentReader implements BeanDefinitionDocume
 			// <bean id="test" class="test.MyClass">
 			// 		<mybean:user username="aaa">
 			// </bean>
-			// 可是，为什么会在默认默认类型标签解析中单独添加一个方法处理自定义类型标签解析？？？
+			// 可是，为什么会在默认默认类型标签解析中单独添加一个方法处理自定义类型标签解析？
 			// 因为：这个自定义标签不是以 Bean 的形式出现的，其实只是属性
 			// 这里只对自定义的标签或者对bean的自定义属性感兴趣
 			bdHolder = delegate.decorateBeanDefinitionIfRequired(ele, bdHolder);

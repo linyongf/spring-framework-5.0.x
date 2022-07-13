@@ -16,30 +16,8 @@
 
 package org.springframework.beans.factory.support;
 
-import java.beans.ConstructorProperties;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.apache.commons.logging.Log;
-
-import org.springframework.beans.BeanMetadataElement;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.TypeConverter;
-import org.springframework.beans.TypeMismatchException;
+import org.springframework.beans.*;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.BeanDefinitionStoreException;
 import org.springframework.beans.factory.InjectionPoint;
@@ -53,12 +31,16 @@ import org.springframework.core.MethodParameter;
 import org.springframework.core.NamedThreadLocal;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.lang.Nullable;
-import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
-import org.springframework.util.MethodInvoker;
-import org.springframework.util.ObjectUtils;
-import org.springframework.util.ReflectionUtils;
-import org.springframework.util.StringUtils;
+import org.springframework.util.*;
+
+import java.beans.ConstructorProperties;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.*;
 
 /**
  * Delegate for resolving constructors and factory methods.
@@ -104,25 +86,24 @@ class ConstructorResolver {
 	 *
 	 * 1.构造函数参数的确定
 	 * 		1.1 根据 explicitArgs 参数判断
-	 * 			BeanFactory 存在这样的方法： Object getBean(String name, Object ...args) throws BeansException
+	 * 			AbstractBeanFactory 存在这样的方法： Object getBean(String name, Object ...args) throws BeansException
 	 * 				args 为构造函数或者工厂方法的方法参数
 	 *		1.2 缓存中获取
 	 *			确定参数的办法如果之前已经分析过，那么就可以直接使用，不过在缓存中缓存的可能是参数的最终类型也可能是初始类型
 	 *		1.3 配置文件获取
-	 *			开始新一轮分析，分析从获取配置文件中配置的构造函数信息开始，经过之前的分析，
-	 *			我们知道配置文件中的信息经过转换会通过 BeanDefinition 实例承载，也就是参数 mbd 中包含，那么可以通过调用
+	 *			经过之前的分析，得知配置文件中的信息经过转换会通过 BeanDefinition 实例承载，那么可以通过调用
 	 *			mbd.getConstructorArgumentValues() 来获取配置的构造函数信息。有了配置中的信息，便可以获取对应的参数值信息，
 	 *			获取参数值信息包括直接指定值，如：直接指定构造函数中某个值为原始类型 String 类型，或者是一个对其他 bean 的引用，
 	 *			而这一处理委托给 resolveConstructorArguments 方法，并返回能解析到的参数的个数
 	 *	2.构造函数的确定
-	 *		根据构造函数参数在所有构造函数中锁定对应的构造函数，匹配的办法就是根据参数个数匹配，所以在匹配之前需要先对构造函数
-	 *		按照 public 构造函数优先参数数量降序，非 public 构造函数参数数量降序。
+	 *		根据构造函数参数在所有构造函数中锁定对应的构造函数，匹配的办法就是根据参数个数匹配，所以在匹配之前需要先将构造函数进行排序，
+	 *		排序规则：按照 public 构造函数优先且参数数量降序，非 public 构造函数参数数量降序。
 	 *
 	 *		但是由于在配置文件中并不是唯一限制使用参数位置索引的方式去创建，同样还支持指定参数名称进行设定参数值，
 	 *		如<constructor-arg name="aa"/>, 那么这种情况就需要首先确定构造函数中的参数名称。
 	 *
 	 *		获取参数名称有两种方式：1.通过注解的方式直接获取， 2.使用 Spring 中的工具类 ParameterNameDiscoverer 来获取。
-	 *		构造函数、参数名称、参数类型、参数值都确定后就可以锁定锁定构造函数以及转换对应的参数类型了
+	 *		构造函数、参数类型、参数名称、参数值都确定后就可以锁定构造函数以及转换对应的参数类型了
 	 *	3.根据确定的构造函数转换对应的参数类型
 	 *		主要使用 Spring 中提供的类型转换器或者用户提供的自定义类型转换器进行转换
 	 *	4.构造函数不确定性的验证
@@ -145,8 +126,7 @@ class ConstructorResolver {
 		ArgumentsHolder argsHolderToUse = null;
 		Object[] argsToUse = null;
 
-		// explicitArgs 通过 getBean 方法传入
-		// 如果 getBean 方法调用的时候指定方法参数那么直接使用
+		// explicitArgs 通过 getBean 方法传入，如果 getBean 方法调用的时候指定方法参数那么直接使用
 		if (explicitArgs != null) {
 			argsToUse = explicitArgs;
 		}

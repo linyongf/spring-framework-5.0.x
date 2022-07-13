@@ -46,3 +46,5 @@ and releases are announced via our [news feed](https://spring.io/blog/category/n
 
 The Spring Framework is released under version 2.0 of the
 [Apache License](https://www.apache.org/licenses/LICENSE-2.0).
+
+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
