@@ -16,9 +16,6 @@
 
 package org.springframework.context.expression;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanExpressionException;
 import org.springframework.beans.factory.config.BeanExpressionContext;
@@ -36,10 +33,37 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 /**
  * Standard implementation of the
  * {@link org.springframework.beans.factory.config.BeanExpressionResolver}
  * interface, parsing and evaluating Spring EL using Spring's expression module.
+ *
+ * SpEL 使用 #{...} 作为定界符，所有在大括号中的字符都将被认为是 SpEL，使用格式如下：
+ * <bean id="aaa" value="com.xxx.xxx.Xxx"/>
+ * <bean>
+ *     <property name="instrument" value="#{aaa}"/>
+ * </bean>
+ * 相当于：
+ * <bean id="aaa" value="com.xxx.xxx.Xxx"/>
+ * <bean>
+ *     <property name="instrument" ref="aaa"/>
+ * </bean>
+ *
+ * 该类的使用时机为：
+ * 	 在 bean 初始化的时候会有属性填充这一步，见 AbstractAutowireCapableBeanFactory#applyPropertyValues
+ *   该方法中通过构造 BeanDefinitionValueResolver 类型实例 valueResolver 来进行属性值的解析，调用链为：
+ *   BeanDefinitionValueResolver#resolveValueIfNecessary -> BeanDefinitionValueResolver#doEvaluate
+ *   -> AbstractBeanFactory#evaluateBeanDefinitionString -> StandardBeanExpressionResolver#evaluate
+ *   其中 AbstractBeanFactory#evaluateBeanDefinitionString 中会判断是否存在语言解析器，如果存在就进行调用解析
+ *
+ * 通过查看 AbstractBeanFactory#evaluateBeanDefinitionString 方法的调用层次可以知道，应用语言解析器的调用
+ * 发生在以下时机：
+ *   1.解析依赖注入 bean 时
+ *   2.完成 bean 的初始化
+ *   3.属性获取后进行属性填充时
  *
  * @author Juergen Hoeller
  * @since 3.0

@@ -16,21 +16,8 @@
 
 package org.springframework.context.support;
 
-import java.io.IOException;
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.springframework.beans.BeansException;
 import org.springframework.beans.CachedIntrospectionResults;
 import org.springframework.beans.factory.BeanFactory;
@@ -39,29 +26,8 @@ import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.support.ResourceEditorRegistrar;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.ApplicationEvent;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.ApplicationEventPublisherAware;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.context.EmbeddedValueResolverAware;
-import org.springframework.context.EnvironmentAware;
-import org.springframework.context.HierarchicalMessageSource;
-import org.springframework.context.LifecycleProcessor;
-import org.springframework.context.MessageSource;
-import org.springframework.context.MessageSourceAware;
-import org.springframework.context.MessageSourceResolvable;
-import org.springframework.context.NoSuchMessageException;
-import org.springframework.context.PayloadApplicationEvent;
-import org.springframework.context.ResourceLoaderAware;
-import org.springframework.context.event.ApplicationEventMulticaster;
-import org.springframework.context.event.ContextClosedEvent;
-import org.springframework.context.event.ContextRefreshedEvent;
-import org.springframework.context.event.ContextStartedEvent;
-import org.springframework.context.event.ContextStoppedEvent;
-import org.springframework.context.event.SimpleApplicationEventMulticaster;
+import org.springframework.context.*;
+import org.springframework.context.event.*;
 import org.springframework.context.expression.StandardBeanExpressionResolver;
 import org.springframework.context.weaving.LoadTimeWeaverAware;
 import org.springframework.context.weaving.LoadTimeWeaverAwareProcessor;
@@ -80,6 +46,11 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.ReflectionUtils;
+
+import java.io.IOException;
+import java.lang.annotation.Annotation;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Abstract implementation of the {@link org.springframework.context.ApplicationContext}
@@ -513,44 +484,77 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		return this.applicationListeners;
 	}
 
+	/**
+	 * 扩展功能总结：
+	 * 1.初始化前的准备工作，例如对系统属性或者环境变量进行准备及验证
+	 * 	   在某种情况下项目的使用需要读取某些系统变量，而这个变量的设置很可能会影响着系统的正确性
+	 * 2.初始化 BeanFactory, 并进行 XML 文件读取
+	 *     复用 BeanFactory 中的配置文件读取解析及其他功能，这一步后，ClassPathXmlApplicationContext 实际上就已经包含了 BeanFactory
+	 *     所提供的功能，也就可以进行 bean 的提取等基础操作了
+	 * 3.对 BeanFactory 进行各种功能填充
+	 * 		@Qualifier 和 @Autowired 这两个注解就是在这一步中增加的支持
+	 * 4.子类覆盖方法做额外的处理
+	 * 5.激活各种 BeanFactory 处理器
+	 * 6.注册拦截 Bean 创建的 Bean 处理器，这里只是注册，真正的调用是在 getBean 时
+	 * 7.为上下文初始化 Message 源，即对不同语言的消息体进行国际化处理
+	 * 8.初始化应用消息广播器，并放入 "applicationEventMulticaster" bean 中
+	 * 9.留给子类来初始化其它的 Bean
+	 * 10.在所有注册的 bean 中查找 Listener Bean, 注册到消息广播器中
+	 * 11.初始化剩下的单实例（非惰性的）
+	 * 12.完成刷新过程，通知生命周期处理器 lifecycleProcessor 刷新过程，同时发出 ContextRefreshEvent 通知别人
+	 * @throws BeansException
+	 * @throws IllegalStateException
+	 */
 	@Override
 	public void refresh() throws BeansException, IllegalStateException {
 		synchronized (this.startupShutdownMonitor) {
 			// Prepare this context for refreshing.
+			// 准备刷新的上下文环境
 			prepareRefresh();
 
 			// Tell the subclass to refresh the internal bean factory.
+			// 初始化 BeanFactory, 并进行 XML 文件读取
 			ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
 
 			// Prepare the bean factory for use in this context.
+			// 功能扩展：对 BeanFactory 进行各种功能填充
 			prepareBeanFactory(beanFactory);
 
 			try {
 				// Allows post-processing of the bean factory in context subclasses.
+				// 子类覆盖方法做额外的处理
 				postProcessBeanFactory(beanFactory);
 
 				// Invoke factory processors registered as beans in the context.
+				// 激活各种 BeanFactory 处理器
 				invokeBeanFactoryPostProcessors(beanFactory);
 
 				// Register bean processors that intercept bean creation.
+				// 注册拦截 Bean 创建的 Bean 处理器，这里只是注册，真正的调用是在 getBean 时
 				registerBeanPostProcessors(beanFactory);
 
 				// Initialize message source for this context.
+				// 为上下文初始化 Message 源，即不同语言的消息体，国际化处理
 				initMessageSource();
 
 				// Initialize event multicaster for this context.
+				// 初始化应用消息广播器，并放入 "applicationEventMulticaster" 中
 				initApplicationEventMulticaster();
 
 				// Initialize other special beans in specific context subclasses.
+				// 留给子类来初始化其它的 Bean
 				onRefresh();
 
 				// Check for listener beans and register them.
+				// 在所有注册的 bean 中查找 Listener Bean, 注册到消息广播器中
 				registerListeners();
 
 				// Instantiate all remaining (non-lazy-init) singletons.
+				// 初始化剩下的单实例（非惰性的）
 				finishBeanFactoryInitialization(beanFactory);
 
 				// Last step: publish corresponding event.
+				// 完成刷新过程，通知生命周期处理器 lifecycleProcessor 刷新过程，同时发出 ContextRefreshEvent 通知别人
 				finishRefresh();
 			}
 
@@ -581,6 +585,8 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	/**
 	 * Prepare this context for refreshing, setting its startup date and
 	 * active flag as well as performing any initialization of property sources.
+	 *
+	 * 环境准备
 	 */
 	protected void prepareRefresh() {
 		// Switch to active.
@@ -593,10 +599,12 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		}
 
 		// Initialize any placeholder property sources in the context environment.
+		// 留给子类覆盖
 		initPropertySources();
 
 		// Validate that all properties marked as required are resolvable:
 		// see ConfigurablePropertyResolver#setRequiredProperties
+		// 验证需要的属性文件是否都已经放入环境中
 		getEnvironment().validateRequiredProperties();
 
 		// Store pre-refresh ApplicationListeners...
@@ -628,9 +636,13 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	 * @return the fresh BeanFactory instance
 	 * @see #refreshBeanFactory()
 	 * @see #getBeanFactory()
+	 *
+	 * 加载 BeanFactory
 	 */
 	protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
+		// 初始化 BeanFactory，并进行 XML 文件读取，并将得到的 BeanFactory 记录在当前实体的属性中
 		refreshBeanFactory();
+		// 返回当前实体的 beanFactory 属性
 		ConfigurableListableBeanFactory beanFactory = getBeanFactory();
 		if (logger.isDebugEnabled()) {
 			logger.debug("Bean factory for " + getDisplayName() + ": " + beanFactory);
@@ -641,16 +653,36 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 	/**
 	 * Configure the factory's standard context characteristics,
 	 * such as the context's ClassLoader and post-processors.
+	 *
+	 * 功能扩展：
+	 * 进入此方法前，Spring 已经完成了配置文件的解析
+	 * 该方法主要进行了以下几方面的扩展：
+	 * 	1.增加对 SpEL 语言的支持
+	 * 	2.增加对属性编辑器的支持
+	 * 	3.增加对一些内置类，比如 EnvironmentAware、MessageSourceAware 的信息注入
+	 * 	4.设置了依赖功能可忽略的接口
+	 * 	5.注册一些固定依赖的属性
+	 * 	6.增加对 AspectJ 的支持
+	 * 	7.将相关环境变量及属性以单例模式注册
 	 * @param beanFactory the BeanFactory to configure
 	 */
 	protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
 		// Tell the internal bean factory to use the context's class loader etc.
+		// 设置 beanFactory 的 class loader 为当前 context 的 class loader
 		beanFactory.setBeanClassLoader(getClassLoader());
+		// 设置 beanFactory 的表达式语言处理器，Spring3 增加了表达式语言的支持，
+		// 默认可以使用 #{bean.xxx} 的形式来调用相关属性值
 		beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
+		// 为 beanFactory 增加了一个默认的 propertyEditor，这个主要是对 bean 的属性等设置管理的一个工具
 		beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
 
 		// Configure the bean factory with context callbacks.
+		/**
+		 * 添加 BeanPostProcessor
+		 */
 		beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+
+		// 设置了几个忽略自动装配的接口
 		beanFactory.ignoreDependencyInterface(EnvironmentAware.class);
 		beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);
 		beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);
@@ -660,6 +692,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 
 		// BeanFactory interface not registered as resolvable type in a plain factory.
 		// MessageSource registered (and found for autowiring) as a bean.
+		// 设置了几个自动装配的特殊规则
 		beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
 		beanFactory.registerResolvableDependency(ResourceLoader.class, this);
 		beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this);
@@ -669,6 +702,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		beanFactory.addBeanPostProcessor(new ApplicationListenerDetector(this));
 
 		// Detect a LoadTimeWeaver and prepare for weaving, if found.
+		// 增加对 AspectJ 的支持
 		if (beanFactory.containsBean(LOAD_TIME_WEAVER_BEAN_NAME)) {
 			beanFactory.addBeanPostProcessor(new LoadTimeWeaverAwareProcessor(beanFactory));
 			// Set a temporary ClassLoader for type matching.
@@ -676,6 +710,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 		}
 
 		// Register default environment beans.
+		// 添加默认的系统环境 bean
 		if (!beanFactory.containsLocalBean(ENVIRONMENT_BEAN_NAME)) {
 			beanFactory.registerSingleton(ENVIRONMENT_BEAN_NAME, getEnvironment());
 		}

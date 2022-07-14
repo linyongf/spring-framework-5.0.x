@@ -16,8 +16,6 @@
 
 package org.springframework.context.support;
 
-import java.io.IOException;
-
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.xml.ResourceEntityResolver;
@@ -25,6 +23,8 @@ import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.Resource;
 import org.springframework.lang.Nullable;
+
+import java.io.IOException;
 
 /**
  * Convenient base class for {@link org.springframework.context.ApplicationContext}
@@ -80,16 +80,19 @@ public abstract class AbstractXmlApplicationContext extends AbstractRefreshableC
 	@Override
 	protected void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) throws BeansException, IOException {
 		// Create a new XmlBeanDefinitionReader for the given BeanFactory.
+		// 为指定 BeanFactory 创建 XmlBeanDefinitionReader
 		XmlBeanDefinitionReader beanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
 
 		// Configure the bean definition reader with this context's
 		// resource loading environment.
+		// 对 beanDefinitionReader 进行环境变量的设置
 		beanDefinitionReader.setEnvironment(this.getEnvironment());
 		beanDefinitionReader.setResourceLoader(this);
 		beanDefinitionReader.setEntityResolver(new ResourceEntityResolver(this));
 
 		// Allow a subclass to provide custom initialization of the reader,
 		// then proceed with actually loading the bean definitions.
+		// 对 beanDefinitionReader 进行设置，可以覆盖
 		initBeanDefinitionReader(beanDefinitionReader);
 		loadBeanDefinitions(beanDefinitionReader);
 	}
@@ -117,6 +120,10 @@ public abstract class AbstractXmlApplicationContext extends AbstractRefreshableC
 	 * @see #getConfigLocations
 	 * @see #getResources
 	 * @see #getResourcePatternResolver
+	 *
+	 * 因为在 XmlBeanDefinitionReader 中已经将之前初始化的 DefaultListableBeanFactory 注册进去了，所以 XmlBeanDefinitionReader
+	 * 所读取的 BeanDefinitionHolder 都会注册到 DefaultListableBeanFactory 中，也就是经过此步骤，类型 DefaultListableBeanFactory
+	 * 的变量 beanFactory 已经包含了所有解析好的配置
 	 */
 	protected void loadBeanDefinitions(XmlBeanDefinitionReader reader) throws BeansException, IOException {
 		Resource[] configResources = getConfigResources();
