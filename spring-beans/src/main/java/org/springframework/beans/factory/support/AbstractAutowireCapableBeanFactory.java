@@ -379,7 +379,7 @@ public abstract class AbstractAutowireCapableBeanFactory extends AbstractBeanFac
 	}
 
 	/**
-	 * Spring 获取bean 的规则中有这样一条：尽可能保证所有 bean 初始化后都会调用注册的 BeanPostProcessor 的
+	 * Spring 获取 bean 的规则中有这样一条：尽可能保证所有 bean 初始化后都会调用注册的 BeanPostProcessor 的
 	 * postProcessAfterInitialization 方法进行处理，因为如果返回的 bean 不为空，那么便不会再次经历普遍 bean
 	 * 的创建
 	 * @param existingBean the existing bean instance

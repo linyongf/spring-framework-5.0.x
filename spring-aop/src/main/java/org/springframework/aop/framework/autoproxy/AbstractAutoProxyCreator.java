@@ -16,20 +16,9 @@
 
 package org.springframework.aop.framework.autoproxy;
 
-import java.beans.PropertyDescriptor;
-import java.lang.reflect.Constructor;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.aopalliance.aop.Advice;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.springframework.aop.Advisor;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.TargetSource;
@@ -50,6 +39,11 @@ import org.springframework.beans.factory.config.SmartInstantiationAwareBeanPostP
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
+
+import java.beans.PropertyDescriptor;
+import java.lang.reflect.Constructor;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * {@link org.springframework.beans.factory.config.BeanPostProcessor} implementation
@@ -297,13 +291,16 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 	@Override
 	public Object postProcessAfterInitialization(@Nullable Object bean, String beanName) throws BeansException {
 		if (bean != null) {
-			// 根据给定的 bean 的 class 和 name 构建出一个 key，格式：beanClassName_beanName
+			// 根据给定的 bean 的 class 和 name 构建出一个 key，4.2.3 以前格式：beanClassName_beanName，
+			// 之后如果 beanName 不为空，并且 bean 是一个 factoryBean 返回 &beanName，否则 返回普通 beanName,
+			// 如果 beanName 为空，返回 class
 			Object cacheKey = getCacheKey(bean.getClass(), beanName);
 			if (this.earlyProxyReferences.remove(cacheKey) != bean) {
 				// 如果它适合被代理，则需要封装指定的 bean
 				return wrapIfNecessary(bean, beanName, cacheKey);
 			}
 		}
+		// null
 		return bean;
 	}
 
@@ -483,6 +480,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 			}
 		}
 
+		// ***************
 		Advisor[] advisors = buildAdvisors(beanName, specificInterceptors);
 		// 加入增强器
 		proxyFactory.addAdvisors(advisors);
@@ -497,6 +495,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 			proxyFactory.setPreFiltered(true);
 		}
 
+		// **********************
 		return proxyFactory.getProxy(getProxyClassLoader());
 	}
 
@@ -563,7 +562,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 
 		Advisor[] advisors = new Advisor[allInterceptors.size()];
 		for (int i = 0; i < allInterceptors.size(); i++) {
-			// 拦截器进行封装 转化为 Advisor
+			// ********** 拦截器进行封装 转化为 Advisor **********
 			advisors[i] = this.advisorAdapterRegistry.wrap(allInterceptors.get(i));
 		}
 		return advisors;

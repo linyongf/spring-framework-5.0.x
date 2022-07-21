@@ -107,6 +107,9 @@ public abstract class AbstractAdvisorAutoProxyCreator extends AbstractAutoProxyC
 
 	/**
 	 * Find all candidate Advisors to use in auto-proxying.
+	 *
+	 * AnnotationAwareAspectJAutoProxyCreator 实现
+	 *
 	 * @return the List of candidate Advisors
 	 */
 	protected List<Advisor> findCandidateAdvisors() {
