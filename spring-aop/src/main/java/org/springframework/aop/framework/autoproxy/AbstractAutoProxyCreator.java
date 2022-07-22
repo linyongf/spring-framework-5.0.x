@@ -295,6 +295,11 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 			// 之后如果 beanName 不为空，并且 bean 是一个 factoryBean 返回 &beanName，否则 返回普通 beanName,
 			// 如果 beanName 为空，返回 class
 			Object cacheKey = getCacheKey(bean.getClass(), beanName);
+			// earlyProxyReferences 中存的 bean 是未经过 AOP 代理且填充了属性的半成品 bean,
+			// 如果此时 bean 和 earlyProxyReferences 中的 bean 相同，则说明 bean 未经过 aop 代理生成新的 bean,
+			// 也就是 bean 和 aop 代理无关，也就不会再次走 aop 代理逻辑；
+			// 相反，如果 earlyProxyReferences 中的 bean 和此时的 bean 不同，说明走了一遍 AOP 代理，也就是说 bean 和 AOP 代理相关
+			// 此处会再走一遍 AOP
 			if (this.earlyProxyReferences.remove(cacheKey) != bean) {
 				// 如果它适合被代理，则需要封装指定的 bean
 				return wrapIfNecessary(bean, beanName, cacheKey);
@@ -334,7 +339,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 	 * @return a proxy wrapping the bean, or the raw bean instance as-is
 	 */
 	protected Object wrapIfNecessary(Object bean, String beanName, Object cacheKey) {
-		// 如果已经处理过
+		// 如果 bean 有匹配的 targetSource 且在 bean 实例化之前处理器方法中已经处理过
 		if (StringUtils.hasLength(beanName) && this.targetSourcedBeans.contains(beanName)) {
 			return bean;
 		}
@@ -349,7 +354,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 		}
 
 		// Create proxy if we have advice.
-		// 如果存在增强方法则创建代理
+		// 如果存在适用于指定 bean 的增强方法则创建代理
 		Object[] specificInterceptors = getAdvicesAndAdvisorsForBean(bean.getClass(), beanName, null);
 		// 如果获取到了增强则需要针对增强创建代理
 		if (specificInterceptors != DO_NOT_PROXY) {
@@ -476,6 +481,7 @@ public abstract class AbstractAutoProxyCreator extends ProxyProcessorSupport
 				proxyFactory.setProxyTargetClass(true);
 			}
 			else {
+				// 添加代理接口
 				evaluateProxyInterfaces(beanClass, proxyFactory);
 			}
 		}

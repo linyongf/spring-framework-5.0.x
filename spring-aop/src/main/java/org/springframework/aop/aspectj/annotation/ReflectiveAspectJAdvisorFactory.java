@@ -118,7 +118,9 @@ public class ReflectiveAspectJAdvisorFactory extends AbstractAspectJAdvisorFacto
 				new LazySingletonAspectInstanceFactoryDecorator(aspectInstanceFactory);
 
 		List<Advisor> advisors = new ArrayList<>();
+		// *********** 找到 aspectClass 中除了声明了 @Pointcut 的所有方法 ************
 		for (Method method : getAdvisorMethods(aspectClass)) {
+			// ********* 普通增强器的获取 **********
 			Advisor advisor = getAdvisor(method, lazySingletonAspectInstanceFactory, advisors.size(), aspectName);
 			if (advisor != null) {
 				advisors.add(advisor);
@@ -127,7 +129,7 @@ public class ReflectiveAspectJAdvisorFactory extends AbstractAspectJAdvisorFacto
 
 		// If it's a per target aspect, emit the dummy instantiating aspect.
 		if (!advisors.isEmpty() && lazySingletonAspectInstanceFactory.getAspectMetadata().isLazilyInstantiated()) {
-			// 如果寻找的增强器不为空而且又配置了增强延迟初始化，那么需要在首位加入实例化增强器 SyntheticInstantiationAdvisor
+			// 如果寻找的增强器不为空而且该 aspectClass 又配置了延迟初始化，那么需要在首位加入实例化增强器 SyntheticInstantiationAdvisor
 			Advisor instantiationAdvisor = new SyntheticInstantiationAdvisor(lazySingletonAspectInstanceFactory);
 			advisors.add(0, instantiationAdvisor);
 		}
@@ -144,6 +146,11 @@ public class ReflectiveAspectJAdvisorFactory extends AbstractAspectJAdvisorFacto
 		return advisors;
 	}
 
+	/**
+	 * 找到 aspectClass 中除了声明了 @Pointcut 的所有方法
+	 * @param aspectClass
+	 * @return
+	 */
 	private List<Method> getAdvisorMethods(Class<?> aspectClass) {
 		final List<Method> methods = new ArrayList<>();
 		ReflectionUtils.doWithMethods(aspectClass, method -> {
@@ -217,14 +224,15 @@ public class ReflectiveAspectJAdvisorFactory extends AbstractAspectJAdvisorFacto
 
 	/***
 	 * 切点信息的获取：
-	 * 所谓获取切点信息就是指定注解的表达式信息的获取，如 @Before("test()")
+	 * 获取指定注解的表达式信息，如 @Before("test()") 就是获取 test()
 	 * @param candidateAdviceMethod
 	 * @param candidateAspectClass
 	 * @return
 	 */
 	@Nullable
 	private AspectJExpressionPointcut getPointcut(Method candidateAdviceMethod, Class<?> candidateAspectClass) {
-		// 获取方法上的注解
+		// 获取方法上的第一个 AspectJ 注解，按照 Around, Before, After, AfterReturning, AfterThrowing 顺序进行匹配，
+		// 并使用 AspectJAnnotation 封装 Annotation
 		AspectJAnnotation<?> aspectJAnnotation =
 				AbstractAspectJAdvisorFactory.findAspectJAnnotationOnMethod(candidateAdviceMethod);
 		if (aspectJAnnotation == null) {
@@ -251,6 +259,9 @@ public class ReflectiveAspectJAdvisorFactory extends AbstractAspectJAdvisorFacto
 		Class<?> candidateAspectClass = aspectInstanceFactory.getAspectMetadata().getAspectClass();
 		validate(candidateAspectClass);
 
+		// 在 getPointcut 中就调用过 AbstractAspectJAdvisorFactory.findAspectJAnnotationOnMethod(candidateAdviceMethod)
+		// 当时是为了封装 AspectJExpressionPointcut 对象，此处是为了获取注解类型，
+		// 是否可以优化一下，直接在 AspectJExpressionPointcut 中封装 AnnotationType 属性
 		AspectJAnnotation<?> aspectJAnnotation =
 				AbstractAspectJAdvisorFactory.findAspectJAnnotationOnMethod(candidateAdviceMethod);
 		if (aspectJAnnotation == null) {
