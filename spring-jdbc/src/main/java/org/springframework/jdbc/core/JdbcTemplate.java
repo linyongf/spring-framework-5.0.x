@@ -350,6 +350,26 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 	// Methods dealing with static SQL (java.sql.Statement)
 	//-------------------------------------------------------------------------
 
+	/**
+	 * 和 SQL 带参数的情况处理不同的地方是 Statement 的创建，这里直接使用 Connection 创建，
+	 * 而带有参数的 SQL 使用的是 PreparedStatementCreator 创建（ connection.prepareStatement(this.sql)）
+	 *
+	 * 关于 PreparedStatement 和 Statement 的区别：
+	 * 1.PreparedStatement 实例包含已经编译的 SQL 语句。这就是使语句 "准备好"。PreparedStatement 对象中的 SQL 语句
+	 * 可具有一个或多个 IN 参数。IN 参数的值在 SQL 语句创建时未被指定，相反，该语句为每个 IN 参数保留一个问号（?） 作为占位符。
+	 * 每个问号的值必须在该语句执行之前，通过适当的 setXXX 方法来提供。
+	 * 2.由于 PreparedStatement 对象已经预编译过，所以其执行速度要快于 Statement 对象。因此，多次执行的 SQL 语句经常创建为
+	 * PreparedStatement 对象，以提高效率。
+	 *
+	 * PreparedStatement 作为 Statement 的子类，继承了 Statement 的所有功能，另外它还添加了一整套方法，用于设置发送给数据库以取代
+	 * IN 参数占位符的值。同时，三种方法 execute、executeQuery、executeUpdate 已被更改以使之不再需要参数。这些方法的 Statement
+	 * 形式（接受 SQL 语句参数的形式）不应该用于 PreparedStatement 对象。
+	 *
+	 * @param action a callback that specifies the action
+	 * @param <T>
+	 * @return
+	 * @throws DataAccessException
+	 */
 	@Override
 	@Nullable
 	public <T> T execute(StatementCallback<T> action) throws DataAccessException {
@@ -412,6 +432,12 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 		}
 
 		class QueryStatementCallback implements StatementCallback<T>, SqlProvider {
+			/**
+			 * SQL 中不带参数的情况，和 SQL 带参数的最大不同是少了参数和参数类型的传递，所以就少了 PreparedStatementSetter
+			 * @param stmt active JDBC Statement
+			 * @return
+			 * @throws SQLException
+			 */
 			@Override
 			@Nullable
 			public T doInStatement(Statement stmt) throws SQLException {
@@ -430,6 +456,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 			}
 		}
 
+		// *********************
 		return execute(new QueryStatementCallback());
 	}
 
@@ -664,6 +691,8 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 						pss.setValues(ps);
 					}
 					rs = ps.executeQuery();
+					// 将结果进行封装并转换至 POJO, rse 当前代表的类为 RowMapperResultSetExtractor,
+					// 而在构造 RowMapperResultSetExtractor 的时候又将自定义的 rowMapper 设置了进去
 					return rse.extractData(rs);
 				}
 				finally {
@@ -859,7 +888,7 @@ public class JdbcTemplate extends JdbcAccessor implements JdbcOperations {
 		return updateCount(execute(psc, ps -> {
 			try {
 				if (pss != null) {
-					// 设置 PreparedStatement 所需的全部参数
+					// *********** 设置 PreparedStatement 所需的全部参数 ************
 					pss.setValues(ps);
 				}
 				int rows = ps.executeUpdate();

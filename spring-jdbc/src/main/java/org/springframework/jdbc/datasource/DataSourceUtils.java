@@ -93,7 +93,7 @@ public abstract class DataSourceUtils {
 	 * <p>Directly accessed by {@link TransactionAwareDataSourceProxy}.
 	 *
 	 * 在数据库连接方面，Spring 主要考虑的是关于事务方面的处理。基于事务处理的特殊性，
-	 * Spring 需要保证线程中的数据库操作都是使用同一事务连接
+	 * Spring 需要保证存在事务的情况下，事务中的数据库操作都是使用同一事务连接
 	 *
 	 * @param dataSource the DataSource to obtain Connections from
 	 * @return a JDBC Connection from the given DataSource
