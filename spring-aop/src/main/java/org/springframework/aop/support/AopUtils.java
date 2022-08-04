@@ -218,6 +218,10 @@ public abstract class AopUtils {
 			return false;
 		}
 
+		// 此时 pc 表示
+		// aop: AspectJExpressionPointcut
+		// tx: TransactionAttributeSourcePointcut
+		// pc.getMethodMatcher() 返回自身
 		MethodMatcher methodMatcher = pc.getMethodMatcher();
 		if (methodMatcher == MethodMatcher.TRUE) {
 			// No need to iterate the methods if we're matching any method anyway...
@@ -240,6 +244,7 @@ public abstract class AopUtils {
 			for (Method method : methods) {
 				if (introductionAwareMethodMatcher != null ?
 						introductionAwareMethodMatcher.matches(method, targetClass, hasIntroductions) :
+						// ******************
 						methodMatcher.matches(method, targetClass)) {
 					return true;
 				}
@@ -276,7 +281,12 @@ public abstract class AopUtils {
 			return ((IntroductionAdvisor) advisor).getClassFilter().matches(targetClass);
 		}
 		else if (advisor instanceof PointcutAdvisor) {
+			// aop 相关: InstantiationModelAwarePointcutAdvisorImpl
+			// 或事务相关： BeanFactoryTransactionAttributeSourceAdvisor
 			PointcutAdvisor pca = (PointcutAdvisor) advisor;
+			// pca.getPointcut() 返回
+			// 1：aop -> AspectJExpressionPointcut 实例
+			// 2：事务 -> TransactionAttributeSourcePointcut 实例
 			return canApply(pca.getPointcut(), targetClass, hasIntroductions);
 		}
 		else {
