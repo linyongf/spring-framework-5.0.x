@@ -248,8 +248,7 @@ public class DataSourceTransactionManager extends AbstractPlatformTransactionMan
 	}
 
 	/**
-	 * 构造 transaction，包括设置 ConnectionHolder、隔离级别、timeout
-	 * 如果是新连接，绑定到当前线程
+	 * 构造 transaction，包括设置 ConnectionHolder、隔离级别、timeout; 如果是新连接，绑定到当前线程
 	 *
 	 * 可以说事务是从这个函数开始的，因为在这个函数中已经开始尝试了对数据库连接的获取，当然，在获取数据库连接的同时，一些必要的设置也是需要同步设置的。
 	 * 1. 尝试获取连接
@@ -263,8 +262,6 @@ public class DataSourceTransactionManager extends AbstractPlatformTransactionMan
 	 * 4.设置标志位，标识当前连接已经被事务激活。
 	 * 5.设置过期时间
 	 * 6.将 connectionHolder 绑定到当前线程
-	 * 	设置隔离级别的 prepareConnectionForTransaction 函数用于负责对底层数据库连接的设置，当然，只是包含只读标识和隔离级别的设置。
-	 * 	由于强大的日志及异常处理，显得函数代码量比较大，但是单从业务角度去看，关键代码其实是差不多的
 	 *
 	 * @param transaction transaction object returned by {@code doGetTransaction}
 	 * @param definition a TransactionDefinition instance, describing propagation
@@ -289,7 +286,7 @@ public class DataSourceTransactionManager extends AbstractPlatformTransactionMan
 			txObject.getConnectionHolder().setSynchronizedWithTransaction(true);
 			con = txObject.getConnectionHolder().getConnection();
 
-			// *********** 2.设置隔离级别以及只读标识 ***************
+			// *********** 2.设置数据库连接的隔离级别、只读标识 ***************
 			Integer previousIsolationLevel = DataSourceUtils.prepareConnectionForTransaction(con, definition);
 			txObject.setPreviousIsolationLevel(previousIsolationLevel);
 

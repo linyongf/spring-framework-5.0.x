@@ -270,7 +270,7 @@ public abstract class TransactionAspectSupport implements BeanFactoryAware, Init
 	 *
 	 * 1.获取事务的属性
 	 * 	对于事务处理来说，最基础的工作就是获取事务属性，如果没有事务属性，其它功能也就无从谈起，在分析指定 bean 是否需要事务增强时已经分析过事务属性，
-	 * 	如果指定方法需要事务增强，已经把事务属性加到了缓存中 key:类和方法名组合，value:事务属性
+	 * 	如果指定方法需要事务增强，已经把事务属性加到了缓存中 key:类和方法名组合，value:事务属性(TransactionAttribute)
 	 * 2.加载配置中配置的 TransactionManager
 	 * 3.不同的事务处理方式使用不同的逻辑
 	 * 	对于声明式事务和编程式事务的处理有两点不同，第一在于事务属性上，因为编程式事务处理不需要有事务属性，第二在 TransactionManager 上，
@@ -296,38 +296,40 @@ public abstract class TransactionAspectSupport implements BeanFactoryAware, Init
 			final InvocationCallback invocation) throws Throwable {
 
 		// If the transaction attribute is null, the method is non-transactional.
+		// getTransactionAttributeSource() -> this.transactionAttributeSource
+		// 类型：AnnotationTransactionAttributeSource
 		TransactionAttributeSource tas = getTransactionAttributeSource();
-		// 获取对应事务属性
+		// 1.获取对应事务属性
 		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
-		// 获取 beanFactory 中的 TransactionManager
+		// 2.获取 beanFactory 中的 TransactionManager -> DataSourceTransactionManager
 		final PlatformTransactionManager tm = determineTransactionManager(txAttr);
 		// 构造方法唯一标识（类.方法，如 service.UserServiceImpl.save）
 		final String joinpointIdentification = methodIdentification(method, targetClass, txAttr);
 
-		// 声明式事务处理
+		// 3.声明式事务处理
 		if (txAttr == null || !(tm instanceof CallbackPreferringPlatformTransactionManager)) {
 			// Standard transaction demarcation with getTransaction and commit/rollback calls.
-			// ************* 创建 TransactionInfo ***************
+			// ************* 4.创建 TransactionInfo ***************
 			TransactionInfo txInfo = createTransactionIfNecessary(tm, txAttr, joinpointIdentification);
 
 			Object retVal;
 			try {
 				// This is an around advice: Invoke the next interceptor in the chain.
 				// This will normally result in a target object being invoked.
-				// 执行被增强方法
+				// 5.执行被增强方法(目标方法)
 				retVal = invocation.proceedWithInvocation();
 			}
 			catch (Throwable ex) {
 				// target invocation exception
-				// *************** 异常回滚 ****************
+				// *************** 6.异常回滚 ****************
 				completeTransactionAfterThrowing(txInfo, ex);
 				throw ex;
 			}
 			finally {
-				// 清除信息
+				// 7.清除信息
 				cleanupTransactionInfo(txInfo);
 			}
-			// ************ 提交事务 **************
+			// ************ 8.提交事务 **************
 			commitTransactionAfterReturning(txInfo);
 			return retVal;
 		}

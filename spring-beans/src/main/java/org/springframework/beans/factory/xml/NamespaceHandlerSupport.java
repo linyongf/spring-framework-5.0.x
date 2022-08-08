@@ -81,7 +81,7 @@ public abstract class NamespaceHandlerSupport implements NamespaceHandler {
 	 */
 	@Nullable
 	private BeanDefinitionParser findParserForElement(Element element, ParserContext parserContext) {
-		// 获取元素名称，也就是<myname:user 中user, 若在示例中，此时 localName 为 user
+		// 获取元素名称，也就是<myname:user 中 user, 若在示例中，此时 localName 为 user
 		// 默认实现：node.getLocalName()
 		String localName = parserContext.getDelegate().getLocalName(element);
 		// 根据 user 找到对应的解析器，也就是在

@@ -365,6 +365,12 @@ public abstract class AbstractPlatformTransactionManager implements PlatformTran
 		}
 
 		// 判断当前线程是否存在事务，判断依据为当前线程记录的连接不为空且连接中（connectionHolder）中的 transactionActive 属性不为空
+		//  DataSourceTransactionManager:
+		//  @Override
+		//	protected boolean isExistingTransaction(Object transaction) {
+		//		DataSourceTransactionObject txObject = (DataSourceTransactionObject) transaction;
+		//		return (txObject.hasConnectionHolder() && txObject.getConnectionHolder().isTransactionActive());
+		//	}
 		if (isExistingTransaction(transaction)) {
 			// Existing transaction found -> check propagation behavior to find out how to behave.
 			// ************ 2.如果当前线程存在事务，则转向嵌套事务的处理 ***************
