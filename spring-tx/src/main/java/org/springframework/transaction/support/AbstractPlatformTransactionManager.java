@@ -444,7 +444,6 @@ public abstract class AbstractPlatformTransactionManager implements PlatformTran
 	 * 	2.2 对于其它方式，比如 JTA 无法使用保存点的方式，那么处理方式与 PROPAGATION_REQUIRES_NEW 相同，而一旦出现异常，则由 Spring
 	 * 		的事务异常处理机制去完成后续操作。
 	 *
-	 * 对于挂起操作的主要目的是记录原有事务的状态，以便于后续操作对事务的恢复
 	 */
 	private TransactionStatus handleExistingTransaction(
 			TransactionDefinition definition, Object transaction, boolean debugEnabled)
