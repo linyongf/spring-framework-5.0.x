@@ -16,24 +16,8 @@
 
 package org.springframework.web.servlet;
 
-import java.io.IOException;
-import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Callable;
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpServletResponseWrapper;
-
 import org.springframework.beans.BeanUtils;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.ApplicationContextException;
-import org.springframework.context.ApplicationContextInitializer;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.*;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.SourceFilteringListener;
 import org.springframework.context.i18n.LocaleContext;
@@ -64,6 +48,17 @@ import org.springframework.web.context.support.XmlWebApplicationContext;
 import org.springframework.web.cors.CorsUtils;
 import org.springframework.web.util.NestedServletException;
 import org.springframework.web.util.WebUtils;
+
+import javax.servlet.ServletContext;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponseWrapper;
+import java.io.IOException;
+import java.security.Principal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  * Base servlet for Spring's web framework. Provides integration with
@@ -499,6 +494,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		long startTime = System.currentTimeMillis();
 
 		try {
+			// ********* WebApplicationContext 的初始化 ************
 			this.webApplicationContext = initWebApplicationContext();
 			initFrameworkServlet();
 		}
@@ -518,6 +514,9 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * Initialize and publish the WebApplicationContext for this servlet.
 	 * <p>Delegates to {@link #createWebApplicationContext} for actual creation
 	 * of the context. Can be overridden in subclasses.
+	 *
+	 * 创建或刷新 WebApplicationContext 实例并对 servlet 功能所使用的变量进行初始化
+	 *
 	 * @return the WebApplicationContext instance
 	 * @see #FrameworkServlet(WebApplicationContext)
 	 * @see #setContextClass
@@ -528,8 +527,12 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 				WebApplicationContextUtils.getWebApplicationContext(getServletContext());
 		WebApplicationContext wac = null;
 
+		// 1.寻找或创建 WebApplicationContext
 		if (this.webApplicationContext != null) {
 			// A context instance was injected at construction time -> use it
+			// 1.1 context 实例在构造函数中被注入：
+			// 在 Web 中包含 SpringWeb 的核心逻辑的 DispatcherServlet 只可以被声明一次，在 Spring 中已经存在验证，所以这就确保了
+			// 如果 this.webApplicationContext != null，则可以直接判定 this.webApplicationContext 已经通过构造函数初始化
 			wac = this.webApplicationContext;
 			if (wac instanceof ConfigurableWebApplicationContext) {
 				ConfigurableWebApplicationContext cwac = (ConfigurableWebApplicationContext) wac;
@@ -541,6 +544,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 						// the root application context (if any; may be null) as the parent
 						cwac.setParent(rootContext);
 					}
+					// 2. 刷新上下文环境
 					configureAndRefreshWebApplicationContext(cwac);
 				}
 			}
@@ -550,10 +554,12 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 			// has been registered in the servlet context. If one exists, it is assumed
 			// that the parent context (if any) has already been set and that the
 			// user has performed any initialization such as setting the context id
+			// ************* 1.2 根据 contextAttribute 属性加载 WebApplicationContext *************
 			wac = findWebApplicationContext();
 		}
 		if (wac == null) {
 			// No context instance is defined for this servlet -> create a local one
+			// ********* 1.3 重新创建 WebApplicationContext 实例 ***********
 			wac = createWebApplicationContext(rootContext);
 		}
 
@@ -562,6 +568,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 			// support or the context injected at construction time had already been
 			// refreshed -> trigger initial onRefresh manually here.
 			synchronized (this.onRefreshMonitor) {
+				// ********* 3.刷新 ********
 				onRefresh(wac);
 			}
 		}
@@ -591,6 +598,10 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 */
 	@Nullable
 	protected WebApplicationContext findWebApplicationContext() {
+		// ContextLoaderListener 加载时会创建 WebApplicationContext 实例，并将实例以
+		// WebApplicationContext.class.getName() + ".ROOT" 为 key 放入 ServletContext 中，
+		// 所以如果 web.xml 中配置了 servlet 参数 ContextAttribute 为 WebApplicationContext.class.getName() + ".ROOT"，
+		// 并且在 ServletContext 中已经存在 WebApplicationContext，则可以找到 WebApplicationContext 并返回
 		String attrName = getContextAttribute();
 		if (attrName == null) {
 			return null;
@@ -619,6 +630,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 * @see org.springframework.web.context.support.XmlWebApplicationContext
 	 */
 	protected WebApplicationContext createWebApplicationContext(@Nullable ApplicationContext parent) {
+		// 获取 servlet 的初始化参数 contextClass，如果没有配置默认为 XmlWebApplicationContext.class
 		Class<?> contextClass = getContextClass();
 		if (this.logger.isDebugEnabled()) {
 			this.logger.debug("Servlet with name '" + getServletName() +
@@ -631,15 +643,19 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 					"': custom WebApplicationContext class [" + contextClass.getName() +
 					"] is not of type ConfigurableWebApplicationContext");
 		}
+		// 通过反射方式实例化 contextClass
 		ConfigurableWebApplicationContext wac =
 				(ConfigurableWebApplicationContext) BeanUtils.instantiateClass(contextClass);
 
 		wac.setEnvironment(getEnvironment());
+		// parent 为在 ContextLoaderListener 中创建的实例，在 ContextLoaderListener 加载的时候初始化的 WebApplicationContext 类型实例
 		wac.setParent(parent);
+		// 获取 contextConfigLocation 属性，配置在 servlet 初始化参数中
 		String configLocation = getContextConfigLocation();
 		if (configLocation != null) {
 			wac.setConfigLocation(configLocation);
 		}
+		// 初始化 Spring 环境包括加载配置文件等
 		configureAndRefreshWebApplicationContext(wac);
 
 		return wac;
@@ -674,6 +690,9 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 
 		postProcessWebApplicationContext(wac);
 		applyInitializers(wac);
+		// 加载配置文件及整合 parent 到 wac：
+		// 无论调用方式如何变化，只要是使用 ApplicationContext 所提供的功能，最后都免不了使用公共父类 AbstractApplicationContext
+		// 提供的 refresh() 进行配置文件加载
 		wac.refresh();
 	}
 
@@ -962,11 +981,17 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 	 */
 	protected final void processRequest(HttpServletRequest request, HttpServletResponse response)
 			throws ServletException, IOException {
-
+		// 记录当前时间，用于计算 web 请求的处理时间
 		long startTime = System.currentTimeMillis();
 		Throwable failureCause = null;
 
+		/**
+		 * 1.为了保证在当前请求后，当前线程的 LocaleContext 以及 RequestAttributes 可以恢复，提取当前线程的两个属性
+		 */
 		LocaleContext previousLocaleContext = LocaleContextHolder.getLocaleContext();
+		/**
+		 * 2.根据当前 request 创建对应的 LocaleContext 和 RequestAttributes，并绑定到当前线程
+		 */
 		LocaleContext localeContext = buildLocaleContext(request);
 
 		RequestAttributes previousAttributes = RequestContextHolder.getRequestAttributes();
@@ -978,6 +1003,9 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		initContextHolders(request, localeContext, requestAttributes);
 
 		try {
+			/**
+			 * 3.委托给 doService 方法进一步处理
+			 */
 			doService(request, response);
 		}
 		catch (ServletException | IOException ex) {
@@ -990,6 +1018,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 		}
 
 		finally {
+			// 4.请求处理结束后恢复线程到原始状态
 			resetContextHolders(request, previousLocaleContext, previousAttributes);
 			if (requestAttributes != null) {
 				requestAttributes.requestCompleted();
@@ -1009,6 +1038,7 @@ public abstract class FrameworkServlet extends HttpServletBean implements Applic
 				}
 			}
 
+			// 5.请求处理结束后无论成功与否都发布事件通知
 			publishRequestHandledEvent(request, response, startTime, failureCause);
 		}
 	}

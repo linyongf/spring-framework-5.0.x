@@ -16,14 +16,6 @@
 
 package org.springframework.web.servlet.handler;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.core.Ordered;
@@ -34,16 +26,19 @@ import org.springframework.util.PathMatcher;
 import org.springframework.web.HttpRequestHandler;
 import org.springframework.web.context.request.WebRequestInterceptor;
 import org.springframework.web.context.support.WebApplicationObjectSupport;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.CorsProcessor;
-import org.springframework.web.cors.CorsUtils;
-import org.springframework.web.cors.DefaultCorsProcessor;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.*;
 import org.springframework.web.servlet.HandlerExecutionChain;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.util.UrlPathHelper;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Abstract base class for {@link org.springframework.web.servlet.HandlerMapping}
@@ -348,19 +343,25 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 	@Override
 	@Nullable
 	public final HandlerExecutionChain getHandler(HttpServletRequest request) throws Exception {
+		// 根据 request 获取对应的 handler, 以 SimpleUrlHandlerMapping 为例分析，此步骤提供的功能应该是根据 URL 找到匹配的
+		// Controller 并返回，当然如果没有找到对应的 Controller 处理器会查找默认处理器
 		Object handler = getHandlerInternal(request);
 		if (handler == null) {
+			// 如果没有对应 request 的 handler 则使用默认的 handler
 			handler = getDefaultHandler();
 		}
+		// 如果也没有提供默认的 handler 则无法继续处理，返回 null
 		if (handler == null) {
 			return null;
 		}
 		// Bean name or resolved handler?
+		// 当查找的 controller 为 String 类型时，意味着返回的是配置的 bean 名称，需要根据 bean 名称查找对应的 bean
 		if (handler instanceof String) {
 			String handlerName = (String) handler;
 			handler = obtainApplicationContext().getBean(handlerName);
 		}
 
+		// ************* 对 Handler 进行封装，保证满足返回类型的匹配 ****************
 		HandlerExecutionChain executionChain = getHandlerExecutionChain(handler, request);
 		if (CorsUtils.isCorsRequest(request)) {
 			CorsConfiguration globalConfig = this.globalCorsConfigSource.getCorsConfiguration(request);
@@ -393,6 +394,10 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 	/**
 	 * Build a {@link HandlerExecutionChain} for the given handler, including
 	 * applicable interceptors.
+	 *
+	 * 加入拦截器到执行链
+	 * 将配置中的对应拦截器加入到执行链中，以保证这些拦截器可以有效地作用于目标对象
+	 *
 	 * <p>The default implementation builds a standard {@link HandlerExecutionChain}
 	 * with the given handler, the common interceptors of the handler mapping, and any
 	 * {@link MappedInterceptor MappedInterceptors} matching to the current request URL. Interceptors

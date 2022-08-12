@@ -28,6 +28,9 @@ import javax.servlet.ServletContextListener;
  * constructor, allowing for programmatic configuration in Servlet 3.0+ environments.
  * See {@link org.springframework.web.WebApplicationInitializer} for usage examples.
  *
+ * ContextLoaderListener 只是辅助功能，用于创建 WebApplicationContext 类型的实例，并保存 ServletContext 中，
+ * 而真正的逻辑实现其实是在 DispatcherServlet 中进行的
+ *
  * @author Juergen Hoeller
  * @author Chris Beams
  * @since 17.02.2003
