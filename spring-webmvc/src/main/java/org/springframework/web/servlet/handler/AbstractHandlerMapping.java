@@ -343,8 +343,8 @@ public abstract class AbstractHandlerMapping extends WebApplicationObjectSupport
 	@Override
 	@Nullable
 	public final HandlerExecutionChain getHandler(HttpServletRequest request) throws Exception {
-		// 根据 request 获取对应的 handler, 以 SimpleUrlHandlerMapping 为例分析，此步骤提供的功能应该是根据 URL 找到匹配的
-		// Controller 并返回，当然如果没有找到对应的 Controller 处理器会查找默认处理器
+		// *************** 根据 request 获取对应的 handler, 以 SimpleUrlHandlerMapping 为例分析，此步骤提供的功能应该是
+		// 根据 URL 找到匹配的 Controller 并返回，当然如果没有找到对应的 Controller 处理器会查找默认处理器 ***************
 		Object handler = getHandlerInternal(request);
 		if (handler == null) {
 			// 如果没有对应 request 的 handler 则使用默认的 handler

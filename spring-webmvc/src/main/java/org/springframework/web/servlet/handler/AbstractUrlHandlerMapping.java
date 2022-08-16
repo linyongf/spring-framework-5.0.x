@@ -139,6 +139,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 				}
 				// 模板方法
 				validateHandler(rawHandler, request);
+				// *******************
 				handler = buildPathExposingHandler(rawHandler, lookupPath, lookupPath, null);
 			}
 		}
@@ -176,6 +177,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 				handler = obtainApplicationContext().getBean(handlerName);
 			}
 			validateHandler(handler, request);
+			// ********** 将 handler 封装成了 HandlerExecutionChain 类型 ***********
 			return buildPathExposingHandler(handler, urlPath, urlPath, null);
 		}
 

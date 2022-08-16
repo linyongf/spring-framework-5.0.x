@@ -1047,13 +1047,14 @@ public class DispatcherServlet extends FrameworkServlet {
 			Exception dispatchException = null;
 
 			try {
-				// 如果是 MultipartContent 类型的 request 则转换 request 为 MultipartHttpServletRequest 类型的 request
-				// contextType 以 multipart/ 开头，并且请求方式是 post
+				// MultipartContent 类型的 request 处理
+				// 对于请求的处理，Spring 首先考虑的是对于 Multipart 的处理，如果是 MultipartContent 类型的 request 则转换 request
+				// 为 MultipartHttpServletRequest 类型的 request(contextType 以 multipart/ 开头，并且请求方式是 post)
 				processedRequest = checkMultipart(request);
 				multipartRequestParsed = (processedRequest != request);
 
 				// Determine handler for the current request.
-				// 根据 request 信息寻找对应的 handler
+				// 根据 request 信息寻找对应的 handler, 如果未找到对应的 handler 则只能通过 response 向用户返回错误信息
 				mappedHandler = getHandler(processedRequest);
 				if (mappedHandler == null) {
 					// ********* 如果没有找到对应的 handler 则通过 response 反馈错误信息 **********
@@ -1079,13 +1080,21 @@ public class DispatcherServlet extends FrameworkServlet {
 					}
 				}
 
-				// 拦截器的 preHandle 方法的调用
+				// ******** 拦截器的 preHandle 方法的调用 ********
+				// Servlet API 定义的 servlet 过滤器可以在 servlet 处理每个 Web 请求的前后分别对它进行前置处理和后置处理。此外，
+				// 有些时候，你可能只想处理由某些 SpringMVC 处理程序处理的 Web 请求，并在这些处理程序返回的模型属性被传递到视图之前，
+				// 对它们进行一些操作。
+				// SpringMVC 允许你通过处理拦截 Web 请求，进行前置处理和后置处理。处理拦截是在 Spring 的 Web 应用程序上下文中配置的，
+				// 因此它们可以利用各种容器特性，并引用容器中声明的任何 bean。处理拦截是针对特殊的处理程序映射进行注册的，因此它只拦截通过
+				// 这些处理程序映射的请求。每个处理拦截都必须实现 HandlerInterceptor 接口，它包含三个需要实现的回调方法：preHandler()、
+				// postHandler()和 afterCompletion(). 第一个和第二个方法分别是在处理程序处理请求之前和之后被调用的，第二个方法还允许访问
+				// 返回的 ModelAndView 对象，因此可以在它里面操作模型属性。最后一个方法是在所有请求处理完成之后被调用的（如视图呈现之后）
 				if (!mappedHandler.applyPreHandle(processedRequest, response)) {
 					return;
 				}
 
 				// Actually invoke the handler.
-				// 真正的激活 handler 并返回视图
+				// ************ 真正的激活 handler 并返回视图 ************
 				mv = ha.handle(processedRequest, response, mappedHandler.getHandler());
 
 				if (asyncManager.isConcurrentHandlingStarted()) {
@@ -1105,6 +1114,7 @@ public class DispatcherServlet extends FrameworkServlet {
 				// making them available for @ExceptionHandler methods and other scenarios.
 				dispatchException = new NestedServletException("Handler dispatch failed", err);
 			}
+			// ****** 处理转发结果 *******
 			processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);
 		}
 		catch (Exception ex) {
@@ -1152,6 +1162,7 @@ public class DispatcherServlet extends FrameworkServlet {
 
 		boolean errorView = false;
 
+		// 异常处理
 		if (exception != null) {
 			if (exception instanceof ModelAndViewDefiningException) {
 				logger.debug("ModelAndViewDefiningException encountered", exception);
@@ -1159,6 +1170,7 @@ public class DispatcherServlet extends FrameworkServlet {
 			}
 			else {
 				Object handler = (mappedHandler != null ? mappedHandler.getHandler() : null);
+				// ****** handlerExceptionResolver.resolveException ******
 				mv = processHandlerException(request, response, handler, exception);
 				errorView = (mv != null);
 			}
@@ -1167,7 +1179,7 @@ public class DispatcherServlet extends FrameworkServlet {
 		// Did the handler return a view to render?
 		// 如果在 Handler 实例的处理中返回了 view，那么需要做页面的处理
 		if (mv != null && !mv.wasCleared()) {
-			// 处理页面跳转
+			// ******** 处理页面跳转 *********
 			render(mv, request, response);
 			if (errorView) {
 				WebUtils.clearErrorRequestAttributes(request);
@@ -1288,6 +1300,7 @@ public class DispatcherServlet extends FrameworkServlet {
 					logger.trace(
 							"Testing handler map [" + hm + "] in DispatcherServlet with name '" + getServletName() + "'");
 				}
+				// ********************
 				HandlerExecutionChain handler = hm.getHandler(request);
 				if (handler != null) {
 					return handler;
@@ -1320,6 +1333,7 @@ public class DispatcherServlet extends FrameworkServlet {
 	/**
 	 * Return the HandlerAdapter for this handler object.
 	 *
+	 * 根据当前 handler 寻找对应的 HandlerAdapter
 	 * 默认情况下普通的 Web 请求会交给 SimpleControllerHandlerAdapter 去处理，对于 SpringMVC 来说，我们会把逻辑封装到 Controller 的
 	 * 子类中
 	 *
@@ -1332,6 +1346,7 @@ public class DispatcherServlet extends FrameworkServlet {
 				if (logger.isTraceEnabled()) {
 					logger.trace("Testing handler adapter [" + ha + "]");
 				}
+				// ************
 				if (ha.supports(handler)) {
 					return ha;
 				}
@@ -1359,6 +1374,7 @@ public class DispatcherServlet extends FrameworkServlet {
 		ModelAndView exMv = null;
 		if (this.handlerExceptionResolvers != null) {
 			for (HandlerExceptionResolver handlerExceptionResolver : this.handlerExceptionResolvers) {
+				// *****************
 				exMv = handlerExceptionResolver.resolveException(request, response, handler, ex);
 				if (exMv != null) {
 					break;
@@ -1406,6 +1422,7 @@ public class DispatcherServlet extends FrameworkServlet {
 		String viewName = mv.getViewName();
 		if (viewName != null) {
 			// We need to resolve the view name.
+			// ********* 解析视图名称 ********
 			view = resolveViewName(viewName, mv.getModelInternal(), locale, request);
 			if (view == null) {
 				throw new ServletException("Could not resolve view with name '" + mv.getViewName() +
@@ -1429,6 +1446,7 @@ public class DispatcherServlet extends FrameworkServlet {
 			if (mv.getStatus() != null) {
 				response.setStatus(mv.getStatus().value());
 			}
+			// ******** 页面跳转 *******
 			view.render(mv.getModelInternal(), request, response);
 		}
 		catch (Exception ex) {
@@ -1468,9 +1486,15 @@ public class DispatcherServlet extends FrameworkServlet {
 	@Nullable
 	protected View resolveViewName(String viewName, @Nullable Map<String, Object> model,
 			Locale locale, HttpServletRequest request) throws Exception {
-
+		// 根据 ModelAndView 选择合适的视图来进行渲染
 		if (this.viewResolvers != null) {
 			for (ViewResolver viewResolver : this.viewResolvers) {
+				// 以 InternalResourceViewResolver 为例分析 ViewResolver 逻辑的解析过程，其中 resolveViewName 函数的实现是在其
+				// 父类 AbstractCachingViewResolver 中完成的。
+				// 对于 InternalResourceViewResolver 所提供的解析功能主要考虑到了几个方面的处理：
+				// 1.基于效率的考虑，提供了缓存的支持
+				// 2.提供了对 redirect:xx 个 forward:xx 前缀的支持
+				// 3.添加了前缀及后缀，并向 View 中加入了必需的属性设置
 				View view = viewResolver.resolveViewName(viewName, locale);
 				if (view != null) {
 					return view;
