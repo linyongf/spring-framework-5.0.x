@@ -16,12 +16,6 @@
 
 package org.springframework.remoting.httpinvoker;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Locale;
-import java.util.zip.GZIPInputStream;
-
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.NoHttpResponseException;
@@ -38,12 +32,17 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-
 import org.springframework.context.i18n.LocaleContext;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.lang.Nullable;
 import org.springframework.remoting.support.RemoteInvocationResult;
 import org.springframework.util.Assert;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Locale;
+import java.util.zip.GZIPInputStream;
 
 /**
  * {@link org.springframework.remoting.httpinvoker.HttpInvokerRequestExecutor} implementation that uses
@@ -187,13 +186,18 @@ public class HttpComponentsHttpInvokerRequestExecutor extends AbstractHttpInvoke
 	protected RemoteInvocationResult doExecuteRequest(
 			HttpInvokerClientConfiguration config, ByteArrayOutputStream baos)
 			throws IOException, ClassNotFoundException {
-
+		// ******* 创建 HttpPost(对于服务端方法的调用是通过 Post 方式进行的) ***********
 		HttpPost postMethod = createHttpPost(config);
+		// ******** 设置含有方法的输出流到 post 中 *******
 		setRequestBody(config, postMethod, baos);
 		try {
+			// ******* 执行方法并等待结果响应 ******
 			HttpResponse response = executeHttpPost(config, getHttpClient(), postMethod);
+			// ****** 验证，对于 HTTP 调用的响应码处理，大于 300 则是非正常调用的响应码 ******
 			validateResponse(config, response);
+			// ***** 提取返回的输入流（从服务器返回的输入流可能是经过压缩的，不同的方式采用不同的办法进行提取） *****
 			InputStream responseBody = getResponseBody(config, response);
+			// ***** 从输入流中提取结果（提取结果的流程主要是从输入流中提取响应的序列化信息） ********
 			return readRemoteInvocationResult(responseBody, config.getCodebaseUrl());
 		}
 		finally {
@@ -211,6 +215,7 @@ public class HttpComponentsHttpInvokerRequestExecutor extends AbstractHttpInvoke
 	 * @throws java.io.IOException if thrown by I/O methods
 	 */
 	protected HttpPost createHttpPost(HttpInvokerClientConfiguration config) throws IOException {
+		// 设置需要访问的 url
 		HttpPost httpPost = new HttpPost(config.getServiceUrl());
 
 		RequestConfig requestConfig = createRequestConfig(config);
@@ -222,11 +227,13 @@ public class HttpComponentsHttpInvokerRequestExecutor extends AbstractHttpInvoke
 		if (localeContext != null) {
 			Locale locale = localeContext.getLocale();
 			if (locale != null) {
+				// 加入 Accept-Language 属性
 				httpPost.addHeader(HTTP_HEADER_ACCEPT_LANGUAGE, locale.toLanguageTag());
 			}
 		}
 
 		if (isAcceptGzipEncoding()) {
+			// 加入 Accept-Encoding 属性
 			httpPost.addHeader(HTTP_HEADER_ACCEPT_ENCODING, ENCODING_GZIP);
 		}
 
@@ -288,7 +295,7 @@ public class HttpComponentsHttpInvokerRequestExecutor extends AbstractHttpInvoke
 	protected void setRequestBody(
 			HttpInvokerClientConfiguration config, HttpPost httpPost, ByteArrayOutputStream baos)
 			throws IOException {
-
+		// 将序列化流加入到 httpPost 中并声明 ContentType 为 application/x-java-serialized-object
 		ByteArrayEntity entity = new ByteArrayEntity(baos.toByteArray());
 		entity.setContentType(getContentType());
 		httpPost.setEntity(entity);

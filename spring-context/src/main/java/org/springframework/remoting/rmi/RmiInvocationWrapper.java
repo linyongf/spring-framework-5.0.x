@@ -16,12 +16,12 @@
 
 package org.springframework.remoting.rmi;
 
-import java.lang.reflect.InvocationTargetException;
-import java.rmi.RemoteException;
-
 import org.springframework.lang.Nullable;
 import org.springframework.remoting.support.RemoteInvocation;
 import org.springframework.util.Assert;
+
+import java.lang.reflect.InvocationTargetException;
+import java.rmi.RemoteException;
 
 /**
  * Server-side implementation of {@link RmiInvocationHandler}. An instance
@@ -73,7 +73,7 @@ class RmiInvocationWrapper implements RmiInvocationHandler {
 	@Nullable
 	public Object invoke(RemoteInvocation invocation)
 		throws RemoteException, NoSuchMethodException, IllegalAccessException, InvocationTargetException {
-
+		// this.rmiExporter -> RmiServiceExporter, this.wrappedObject -> serviceProxy
 		return this.rmiExporter.invoke(invocation, this.wrappedObject);
 	}
 

@@ -16,21 +16,16 @@
 
 package org.springframework.remoting.httpinvoker;
 
-import java.io.FilterOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.springframework.remoting.rmi.RemoteInvocationSerializingExporter;
 import org.springframework.remoting.support.RemoteInvocation;
 import org.springframework.remoting.support.RemoteInvocationResult;
 import org.springframework.web.HttpRequestHandler;
 import org.springframework.web.util.NestedServletException;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.*;
 
 /**
  * Servlet-API-based HTTP request handler that exports the specified service bean
@@ -75,8 +70,11 @@ public class HttpInvokerServiceExporter extends RemoteInvocationSerializingExpor
 			throws ServletException, IOException {
 
 		try {
+			// ********** 从 request 中读取序列化对象 *************
 			RemoteInvocation invocation = readRemoteInvocation(request);
+			// ************ 执行调用，getProxy()为该 bean 初始化时创建的代理对象 **********
 			RemoteInvocationResult result = invokeAndCreateResult(invocation, getProxy());
+			// *********** 将结果的序列化对象写入输出流 *****************
 			writeRemoteInvocationResult(request, response, result);
 		}
 		catch (ClassNotFoundException ex) {
@@ -95,7 +93,7 @@ public class HttpInvokerServiceExporter extends RemoteInvocationSerializingExpor
 	 */
 	protected RemoteInvocation readRemoteInvocation(HttpServletRequest request)
 			throws IOException, ClassNotFoundException {
-
+		// ******************
 		return readRemoteInvocation(request, request.getInputStream());
 	}
 
@@ -114,9 +112,10 @@ public class HttpInvokerServiceExporter extends RemoteInvocationSerializingExpor
 	 */
 	protected RemoteInvocation readRemoteInvocation(HttpServletRequest request, InputStream is)
 			throws IOException, ClassNotFoundException {
-
+		// 创建对象输入流
 		ObjectInputStream ois = createObjectInputStream(decorateInputStream(request, is));
 		try {
+			// ************* 从输入流中读取序列化对象 **************
 			return doReadRemoteInvocation(ois);
 		}
 		finally {
@@ -148,8 +147,9 @@ public class HttpInvokerServiceExporter extends RemoteInvocationSerializingExpor
 	protected void writeRemoteInvocationResult(
 			HttpServletRequest request, HttpServletResponse response, RemoteInvocationResult result)
 			throws IOException {
-
+		// ContentType -> application/x-java-serialized-object
 		response.setContentType(getContentType());
+		// *******************
 		writeRemoteInvocationResult(request, response, result, response.getOutputStream());
 	}
 
@@ -171,10 +171,11 @@ public class HttpInvokerServiceExporter extends RemoteInvocationSerializingExpor
 	protected void writeRemoteInvocationResult(
 			HttpServletRequest request, HttpServletResponse response, RemoteInvocationResult result, OutputStream os)
 			throws IOException {
-
+		// 获取输出流
 		ObjectOutputStream oos =
 				createObjectOutputStream(new FlushGuardedOutputStream(decorateOutputStream(request, response, os)));
 		try {
+			// 将序列化对象写入输出流
 			doWriteRemoteInvocationResult(result, oos);
 		}
 		finally {

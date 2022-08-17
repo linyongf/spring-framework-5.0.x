@@ -16,9 +16,9 @@
 
 package org.springframework.remoting.support;
 
-import java.lang.reflect.InvocationTargetException;
-
 import org.springframework.util.Assert;
+
+import java.lang.reflect.InvocationTargetException;
 
 /**
  * Default implementation of the {@link RemoteInvocationExecutor} interface.
@@ -36,6 +36,7 @@ public class DefaultRemoteInvocationExecutor implements RemoteInvocationExecutor
 
 		Assert.notNull(invocation, "RemoteInvocation must not be null");
 		Assert.notNull(targetObject, "Target object must not be null");
+		// 通过反射方式激活方法
 		return invocation.invoke(targetObject);
 	}
 

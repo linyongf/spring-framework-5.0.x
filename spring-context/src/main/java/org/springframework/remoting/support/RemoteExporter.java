@@ -148,13 +148,18 @@ public abstract class RemoteExporter extends RemotingSupport {
 	 * @see RemoteInvocationTraceInterceptor
 	 */
 	protected Object getProxyForService() {
+		// 验证 service
 		checkService();
+		// 验证 serviceInterface
 		checkServiceInterface();
 
+		// 使用 JDK 的方式创建代理
 		ProxyFactory proxyFactory = new ProxyFactory();
+		// 添加代理接口
 		proxyFactory.addInterface(getServiceInterface());
 
 		if (this.registerTraceInterceptor != null ? this.registerTraceInterceptor : this.interceptors == null) {
+			// 加入代理的横切面 RemoteInvocationTraceInterceptor 并记录 Exporter 名称
 			proxyFactory.addAdvice(new RemoteInvocationTraceInterceptor(getExporterName()));
 		}
 		if (this.interceptors != null) {
@@ -164,9 +169,11 @@ public abstract class RemoteExporter extends RemotingSupport {
 			}
 		}
 
+		// 设置要代理的目标类
 		proxyFactory.setTarget(getService());
 		proxyFactory.setOpaque(true);
 
+		// 创建代理
 		return proxyFactory.getProxy(getBeanClassLoader());
 	}
 

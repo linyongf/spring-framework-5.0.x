@@ -16,17 +16,8 @@
 
 package org.springframework.remoting.httpinvoker;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.OutputStream;
-import java.rmi.RemoteException;
-
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
 import org.springframework.beans.factory.BeanClassLoaderAware;
 import org.springframework.lang.Nullable;
 import org.springframework.remoting.rmi.CodebaseAwareObjectInputStream;
@@ -34,6 +25,9 @@ import org.springframework.remoting.support.RemoteInvocation;
 import org.springframework.remoting.support.RemoteInvocationResult;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+
+import java.io.*;
+import java.rmi.RemoteException;
 
 /**
  * Abstract base implementation of the HttpInvokerRequestExecutor interface.
@@ -131,12 +125,14 @@ public abstract class AbstractHttpInvokerRequestExecutor implements HttpInvokerR
 	@Override
 	public final RemoteInvocationResult executeRequest(
 			HttpInvokerClientConfiguration config, RemoteInvocation invocation) throws Exception {
-
+		// 获取输出流
 		ByteArrayOutputStream baos = getByteArrayOutputStream(invocation);
 		if (logger.isDebugEnabled()) {
 			logger.debug("Sending HTTP invoker request for service at [" + config.getServiceUrl() +
 					"], with size " + baos.size());
 		}
+		// 对远程方法的构造与通信，与远程方法的连接功能实现中，Spring 引入了第三方 JAR：HttpClient。HttpClient 是 Apache 下的子项目，
+		// 可以用来提供高效的、最新的、功能丰富的支持 HTTP 协议的客户端编程工具包，并且它支持 HTTP 协议最新的版本和建议。
 		return doExecuteRequest(config, baos);
 	}
 

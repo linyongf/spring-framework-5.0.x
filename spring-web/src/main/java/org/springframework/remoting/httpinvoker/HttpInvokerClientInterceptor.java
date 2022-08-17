@@ -16,13 +16,8 @@
 
 package org.springframework.remoting.httpinvoker;
 
-import java.io.IOException;
-import java.io.InvalidClassException;
-import java.net.ConnectException;
-
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
-
 import org.springframework.aop.support.AopUtils;
 import org.springframework.lang.Nullable;
 import org.springframework.remoting.RemoteAccessException;
@@ -31,6 +26,10 @@ import org.springframework.remoting.RemoteInvocationFailureException;
 import org.springframework.remoting.support.RemoteInvocation;
 import org.springframework.remoting.support.RemoteInvocationBasedAccessor;
 import org.springframework.remoting.support.RemoteInvocationResult;
+
+import java.io.IOException;
+import java.io.InvalidClassException;
+import java.net.ConnectException;
 
 /**
  * {@link org.aopalliance.intercept.MethodInterceptor} for accessing an
@@ -147,10 +146,17 @@ public class HttpInvokerClientInterceptor extends RemoteInvocationBasedAccessor
 			return "HTTP invoker proxy for service URL [" + getServiceUrl() + "]";
 		}
 
+		/**
+		 * 将要调用的方法封装为 RemoteInvocation
+		 * 因为是代理中增强方法的调用，调用的方法以及参数信息会在代理中封装至 MethodInvocation 实例中，并在增强器中进行传递，
+		 * 也就意味着当程序进入 invoke 方法时其实是已经包含了调用的接口的相关信息，那么首先要做的就是将 methodInvocation 中
+		 * 的信息提取并构建 RemoteInvocation 实例
+		 */
 		RemoteInvocation invocation = createRemoteInvocation(methodInvocation);
 		RemoteInvocationResult result;
 
 		try {
+			// *********** 远程执行方法 ************
 			result = executeRequest(invocation, methodInvocation);
 		}
 		catch (Throwable ex) {
@@ -159,6 +165,11 @@ public class HttpInvokerClientInterceptor extends RemoteInvocationBasedAccessor
 		}
 
 		try {
+			/**
+			 * 提取结果
+			 * 考虑到序列化的问题，在 Spring 中约定使用 HttpInvoker 方式进行远程方法调用时，结果使用 RemoteInvocationResult 进行封装，
+			 * 那么在提取结果后还需要从封装的结果中提取对应的结果
+ 			 */
 			return recreateRemoteInvocationResult(result);
 		}
 		catch (Throwable ex) {
@@ -184,7 +195,7 @@ public class HttpInvokerClientInterceptor extends RemoteInvocationBasedAccessor
 	 */
 	protected RemoteInvocationResult executeRequest(
 			RemoteInvocation invocation, MethodInvocation originalInvocation) throws Exception {
-
+		// ****************
 		return executeRequest(invocation);
 	}
 
@@ -203,6 +214,7 @@ public class HttpInvokerClientInterceptor extends RemoteInvocationBasedAccessor
 	 * @see HttpInvokerClientConfiguration
 	 */
 	protected RemoteInvocationResult executeRequest(RemoteInvocation invocation) throws Exception {
+		// **************
 		return getHttpInvokerRequestExecutor().executeRequest(this, invocation);
 	}
 

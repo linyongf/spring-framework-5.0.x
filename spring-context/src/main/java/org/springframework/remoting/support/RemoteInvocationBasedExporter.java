@@ -75,6 +75,7 @@ public abstract class RemoteInvocationBasedExporter extends RemoteExporter {
 			logger.trace("Executing " + invocation);
 		}
 		try {
+			// **************
 			return getRemoteInvocationExecutor().invoke(invocation, targetObject);
 		}
 		catch (NoSuchMethodException ex) {
@@ -111,7 +112,16 @@ public abstract class RemoteInvocationBasedExporter extends RemoteExporter {
 	 */
 	protected RemoteInvocationResult invokeAndCreateResult(RemoteInvocation invocation, Object targetObject) {
 		try {
+			/**
+			 * 激活代理类中对应 invocation 中的方法
+			 * 最终还是执行 invocation.invoke(targetObject)，大致的逻辑还是通过 RemoteInvocation 中对应的方法信息在 targetObject
+			 * 上去执行。但是 targetObject 是代理类，调用代理类的时候需要考虑增强方法的调用。
+ 			 */
 			Object value = invoke(invocation, targetObject);
+			/**
+			 * 封装结果以便于序列化
+			 * 因为无法保证对于所有操作的返回结果都继承 Serializable 接口，所以使用 RemoteInvocationResult 类进行统一封装
+ 			 */
 			return new RemoteInvocationResult(value);
 		}
 		catch (Throwable ex) {
