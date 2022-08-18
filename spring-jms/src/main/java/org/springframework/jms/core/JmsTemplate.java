@@ -16,19 +16,6 @@
 
 package org.springframework.jms.core;
 
-import javax.jms.Connection;
-import javax.jms.ConnectionFactory;
-import javax.jms.DeliveryMode;
-import javax.jms.Destination;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageProducer;
-import javax.jms.Queue;
-import javax.jms.QueueBrowser;
-import javax.jms.Session;
-import javax.jms.TemporaryQueue;
-
 import org.springframework.jms.JmsException;
 import org.springframework.jms.connection.ConnectionFactoryUtils;
 import org.springframework.jms.connection.JmsResourceHolder;
@@ -40,6 +27,9 @@ import org.springframework.jms.support.destination.JmsDestinationAccessor;
 import org.springframework.lang.Nullable;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.Assert;
+
+import javax.jms.*;
+import java.lang.IllegalStateException;
 
 /**
  * Helper class that simplifies synchronous JMS access code.
@@ -491,8 +481,11 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 			Session sessionToUse = ConnectionFactoryUtils.doGetTransactionalSession(
 					obtainConnectionFactory(), this.transactionalResourceFactory, startConnection);
 			if (sessionToUse == null) {
+				// 创建 Connection
 				conToClose = createConnection();
+				// 根据 Connection 创建 Session
 				sessionToClose = createSession(conToClose);
+				// 是否开启向服务器推送连接信息，只有接收信息时需要，发送时不需要
 				if (startConnection) {
 					conToClose.start();
 				}
@@ -501,13 +494,16 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 			if (logger.isDebugEnabled()) {
 				logger.debug("Executing callback on JMS Session: " + sessionToUse);
 			}
+			// 调用回调函数
 			return action.doInJms(sessionToUse);
 		}
 		catch (JMSException ex) {
 			throw convertJmsAccessException(ex);
 		}
 		finally {
+			// 关闭 session
 			JmsUtils.closeSession(sessionToClose);
+			// 释放连接
 			ConnectionFactoryUtils.releaseConnection(conToClose, getConnectionFactory(), startConnection);
 		}
 	}
@@ -573,7 +569,9 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 
 	@Override
 	public void send(final Destination destination, final MessageCreator messageCreator) throws JmsException {
+		// ************
 		execute(session -> {
+			// ***********
 			doSend(session, destination, messageCreator);
 			return null;
 		}, false);
@@ -599,12 +597,14 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 			throws JMSException {
 
 		Assert.notNull(messageCreator, "MessageCreator must not be null");
+		// 利用 session 创建消息生产者 -> session.createProducer(destination)
 		MessageProducer producer = createProducer(session, destination);
 		try {
 			Message message = messageCreator.createMessage(session);
 			if (logger.isDebugEnabled()) {
 				logger.debug("Sending created message: " + message);
 			}
+			// producer.send(message)
 			doSend(producer, message);
 			// Check commit - avoid commit call within a JTA transaction.
 			if (session.getTransacted() && isSessionLocallyTransacted(session)) {
@@ -714,6 +714,7 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 	@Override
 	@Nullable
 	public Message receive(Destination destination) throws JmsException {
+		// ***********
 		return receiveSelected(destination, null);
 	}
 
@@ -738,6 +739,7 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 	@Override
 	@Nullable
 	public Message receiveSelected(final Destination destination, @Nullable final String messageSelector) throws JmsException {
+		//*************
 		return execute(session -> doReceive(session, destination, messageSelector), true);
 	}
 
@@ -761,7 +763,7 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 	@Nullable
 	protected Message doReceive(Session session, Destination destination, @Nullable String messageSelector)
 			throws JMSException {
-
+		// ***********
 		return doReceive(session, createConsumer(session, destination, messageSelector));
 	}
 
@@ -785,6 +787,7 @@ public class JmsTemplate extends JmsDestinationAccessor implements JmsOperations
 			if (resourceHolder != null && resourceHolder.hasTimeout()) {
 				timeout = Math.min(timeout, resourceHolder.getTimeToLiveInMillis());
 			}
+			// consumer.receive()
 			Message message = receiveFromConsumer(consumer, timeout);
 			if (session.getTransacted()) {
 				// Commit necessary - but avoid commit call within a JTA transaction.

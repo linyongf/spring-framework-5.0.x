@@ -16,14 +16,6 @@
 
 package org.springframework.jms.listener;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.Executor;
-import javax.jms.Connection;
-import javax.jms.JMSException;
-import javax.jms.MessageConsumer;
-import javax.jms.Session;
-
 import org.springframework.core.Constants;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
@@ -39,6 +31,14 @@ import org.springframework.util.ClassUtils;
 import org.springframework.util.backoff.BackOff;
 import org.springframework.util.backoff.BackOffExecution;
 import org.springframework.util.backoff.FixedBackOff;
+
+import javax.jms.Connection;
+import javax.jms.JMSException;
+import javax.jms.MessageConsumer;
+import javax.jms.Session;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * Message listener container variant that uses plain JMS client APIs, specifically
@@ -535,6 +535,7 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 		}
 
 		// Proceed with actual listener initialization.
+		// *************
 		super.initialize();
 	}
 
@@ -548,7 +549,16 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 	@Override
 	protected void doInitialize() throws JMSException {
 		synchronized (this.lifecycleMonitor) {
+			/**
+			 * concurrentConsumers：
+			 * 消息监听器允许创建多个 session 和 messageConsumer 来接收消息。具体的个数由 concurrentConsumers 属性指定。需要注意的是，
+			 * 应该只是在 Destination 为 Queue 的时候才使用多个 messageConsumer（Queue 中的一个消息只能被一个 consumer 接收），虽然
+			 * 使用多个 messageConsumer 会提高消息处理的性能，但是消息处理的顺序却得不到保证。消息被接收的顺序仍然是消息发送时的顺序，但是
+			 * 由于消息可能会被并发处理，因此消息处理的顺序可能和消息发送的顺序不同。此外，不应该在 Destination 为 Topic 的时候使用多个
+			 * messageConsumer，因为多个 messageConsumer 会接收到同样的消息
+			 */
 			for (int i = 0; i < this.concurrentConsumers; i++) {
+				// ***** 根据 concurrentConsumers 数量建立了对应数量的线程，而每个线程都作为一个独立的接收者在循环接收消息 *****
 				scheduleNewInvoker();
 			}
 		}
@@ -707,7 +717,9 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 	 * invokers for this listener container.
 	 */
 	private void scheduleNewInvoker() {
+		// ***************
 		AsyncMessageListenerInvoker invoker = new AsyncMessageListenerInvoker();
+		// *******************
 		if (rescheduleTaskIfNecessary(invoker)) {
 			// This should always be true, since we're only calling this when active.
 			this.scheduledInvokers.add(invoker);
@@ -1065,17 +1077,22 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 
 		@Override
 		public void run() {
+			// 并发控制
 			synchronized (lifecycleMonitor) {
 				activeInvokerCount++;
 				lifecycleMonitor.notifyAll();
 			}
 			boolean messageReceived = false;
 			try {
+				// 根据每个任务设置的最大处理消息数量而作不同处理，小于0默认为无限制，一直接收消息
 				if (maxMessagesPerTask < 0) {
+					// ****** 在无限制循环接收消息的情况下，用户可以通过设置标志位 running 来控制消息接收的暂停与恢复，
+					// 并维护当前消息监听器的数量 *******
 					messageReceived = executeOngoingLoop();
 				}
 				else {
 					int messageCount = 0;
+					// 消息数量控制，一旦超出数量则停止循环
 					while (isRunning() && messageCount < maxMessagesPerTask) {
 						messageReceived = (invokeListener() || messageReceived);
 						messageCount++;
@@ -1083,6 +1100,7 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 				}
 			}
 			catch (Throwable ex) {
+				// 清理操作，包括关闭 session 等
 				clearResources();
 				if (!this.lastMessageSucceeded) {
 					// We failed more than once in a row or on startup -
@@ -1142,6 +1160,20 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 			}
 		}
 
+		/**
+		 * 如果按照正常的流程是不会进入 while 循环中的，而是直接进入函数 invokeListener() 来接收消息并激活监听器，但是不可能让循环一直持续
+		 * 下去，所以需要考虑暂停线程或者恢复线程，这时，isRunning() 函数就派上用场了。
+		 *
+		 * isRunning() 用来检测标志位 this.running 状态进而判断是否需要进入 while 循环。由于要维护当前线程激活数量，所以引入了
+		 * wasWaiting 变量，用于判断线程是否处于等待状态。如果线程首次进入等待状态，则需要减少线程来激活数量计数器。
+		 *
+		 * 当然，线程等待不是一味地采用 while 循环来控制，否则会浪费 CPU 的时钟周期，给资源造成巨大的浪费。这里，Spring 采用全局控制变量
+		 * lifecycleMonitor 的 wait() 方法来暂停线程，所以，如果终止线程需要再次恢复的话，除了更改 this.running 标志位外，还需要调用
+		 * lifecycleMonitor.notify 或者 lifecycleMonitor.notifyAll 来使线程恢复
+		 *
+		 * @return
+		 * @throws JMSException
+		 */
 		private boolean executeOngoingLoop() throws JMSException {
 			boolean messageReceived = false;
 			boolean active = true;
@@ -1149,16 +1181,20 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 				synchronized (lifecycleMonitor) {
 					boolean interrupted = false;
 					boolean wasWaiting = false;
+					// 如果当前任务已经处于激活状态但是却给了暂停终止的命令
 					while ((active = isActive()) && !isRunning()) {
 						if (interrupted) {
 							throw new IllegalStateException("Thread was interrupted while waiting for " +
 									"a restart of the listener container, but container is still stopped");
 						}
 						if (!wasWaiting) {
+							// 如果并非处于等待状态则说明是第一次执行，需要将激活任务数量减少
 							decreaseActiveInvokerCount();
 						}
+						// 开始进入等待状态，等待任务的恢复命令
 						wasWaiting = true;
 						try {
+							// 通过 wait 等待，也就是等待 notify 或者 notifyAll
 							lifecycleMonitor.wait();
 						}
 						catch (InterruptedException ex) {
@@ -1174,6 +1210,7 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 						active = false;
 					}
 				}
+				// 正常处理流程
 				if (active) {
 					messageReceived = (invokeListener() || messageReceived);
 				}
@@ -1184,8 +1221,11 @@ public class DefaultMessageListenerContainer extends AbstractPollingMessageListe
 		private boolean invokeListener() throws JMSException {
 			this.currentReceiveThread = Thread.currentThread();
 			try {
+				// 初始化资源包括首次创建的时候创建 session 和 consumer
 				initResourcesIfNecessary();
+				// *************
 				boolean messageReceived = receiveAndExecute(this, this.session, this.consumer);
+				// 改变标志位，信息成功处理
 				this.lastMessageSucceeded = true;
 				return messageReceived;
 			}

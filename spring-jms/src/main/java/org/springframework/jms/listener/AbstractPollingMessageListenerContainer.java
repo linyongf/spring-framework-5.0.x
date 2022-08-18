@@ -16,13 +16,6 @@
 
 package org.springframework.jms.listener;
 
-import javax.jms.Connection;
-import javax.jms.Destination;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.Session;
-
 import org.springframework.jms.connection.ConnectionFactoryUtils;
 import org.springframework.jms.connection.JmsResourceHolder;
 import org.springframework.jms.connection.SingleConnectionFactory;
@@ -35,6 +28,8 @@ import org.springframework.transaction.support.ResourceTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionSynchronizationUtils;
 import org.springframework.util.Assert;
+
+import javax.jms.*;
 
 /**
  * Base class for listener container implementations which are based on polling.
@@ -202,6 +197,7 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 		}
 
 		// Proceed with superclass initialization.
+		// ***********
 		super.initialize();
 	}
 
@@ -242,6 +238,7 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 			TransactionStatus status = this.transactionManager.getTransaction(this.transactionDefinition);
 			boolean messageReceived;
 			try {
+				// ************
 				messageReceived = doReceiveAndExecute(invoker, session, consumer, status);
 			}
 			catch (JMSException | RuntimeException | Error ex) {
@@ -254,6 +251,7 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 
 		else {
 			// Execute receive outside of transaction.
+			// ************
 			return doReceiveAndExecute(invoker, session, consumer, null);
 		}
 	}
@@ -261,6 +259,12 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 	/**
 	 * Actually execute the listener for a message received from the given consumer,
 	 * fetching all requires resources and invoking the listener.
+	 *
+	 * 如果用户配置了 this.transactionManager，也就是配置了事务，那么，消息的接收会被控制在事务之内，一旦出现异常就会回滚，而回滚操作也会交给
+	 * 事务管理器统一处理，比如 this.transactionManager.rollback(status)
+	 *
+	 * 该方法包含了整个消息的接收处理过程，由于掺杂着事务，所以并没有复用模板中的方法
+	 *
 	 * @param session the JMS Session to work on
 	 * @param consumer the MessageConsumer to work on
 	 * @param status the TransactionStatus (may be {@code null})
@@ -300,6 +304,7 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 				consumerToUse = createListenerConsumer(sessionToUse);
 				consumerToClose = consumerToUse;
 			}
+			// 接收消息
 			Message message = receiveMessage(consumerToUse);
 			if (message != null) {
 				if (logger.isDebugEnabled()) {
@@ -307,6 +312,7 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 							consumerToUse + "] of " + (transactional ? "transactional " : "") + "session [" +
 							sessionToUse + "]");
 				}
+				// 模板方法，当消息接收且在未处理前给子类机会做相应处理，当前空实现
 				messageReceived(invoker, sessionToUse);
 				boolean exposeResource = (!transactional && isExposeListenerSession() &&
 						!TransactionSynchronizationManager.hasResource(obtainConnectionFactory()));
@@ -315,6 +321,7 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 							obtainConnectionFactory(), new LocallyExposedJmsResourceHolder(sessionToUse));
 				}
 				try {
+					// ******* 激活监听器 ***********
 					doExecuteListener(sessionToUse, message);
 				}
 				catch (Throwable ex) {
@@ -344,6 +351,7 @@ public abstract class AbstractPollingMessageListenerContainer extends AbstractMe
 					logger.trace("Consumer [" + consumerToUse + "] of " + (transactional ? "transactional " : "") +
 							"session [" + sessionToUse + "] did not receive a message");
 				}
+				// 接收到空消息的处理
 				noMessageReceived(invoker, sessionToUse);
 				// Nevertheless call commit, in order to reset the transaction timeout (if any).
 				if (shouldCommitAfterNoMessageReceived(sessionToUse)) {

@@ -16,22 +16,14 @@
 
 package org.springframework.jms.listener;
 
-import javax.jms.Connection;
-import javax.jms.Destination;
-import javax.jms.ExceptionListener;
-import javax.jms.JMSException;
-import javax.jms.Message;
-import javax.jms.MessageConsumer;
-import javax.jms.MessageListener;
-import javax.jms.Queue;
-import javax.jms.Session;
-import javax.jms.Topic;
-
 import org.springframework.jms.support.JmsUtils;
 import org.springframework.jms.support.QosSettings;
 import org.springframework.jms.support.converter.MessageConverter;
 import org.springframework.lang.Nullable;
 import org.springframework.util.ErrorHandler;
+
+import javax.jms.*;
+import java.lang.IllegalStateException;
 
 /**
  * Abstract base class for Spring message listener container implementations.
@@ -652,6 +644,9 @@ public abstract class AbstractMessageListenerContainer extends AbstractJmsListen
 	/**
 	 * Execute the specified listener,
 	 * committing or rolling back the transaction afterwards (if necessary).
+	 *
+	 *
+	 *
 	 * @param session the JMS Session to operate on
 	 * @param message the received JMS Message
 	 * @throws JMSException if thrown by JMS API methods
@@ -671,12 +666,20 @@ public abstract class AbstractMessageListenerContainer extends AbstractJmsListen
 		}
 
 		try {
+			// ******* 通过层层调用，最终提取监听器并使用 listener.onMessage(message) 对其进行了激活，也就是自定义的监听器逻辑。 *****
 			invokeListener(session, message);
 		}
 		catch (JMSException | RuntimeException | Error ex) {
 			rollbackOnExceptionIfNecessary(session, ex);
 			throw ex;
 		}
+		/**
+		 * session.commit()
+		 * 完成消息服务的事务提交，涉及两个事务，DefaultMessageListenerContainer 增加的对于事务的支持，是通用的事务，也就是在消息接收过程
+		 * 中如果产生其它操作，比如向数据库中插入操作，一旦出现异常时就需要全部回滚，包括回滚插入数据库中的数据。但是，除了常说的事务之外，对于
+		 * 消息本身还有一个事务，当接收一个消息的时候，必须使用事务提交的方式，这是在告诉消息服务器本地已经正常接收消息，消息服务器接收到本地的
+		 * 事务提交后便可以将此消息删除，否则，当前消息会被其它接收者重新接收。
+ 		 */
 		commitIfNecessary(session, message);
 	}
 
@@ -696,6 +699,7 @@ public abstract class AbstractMessageListenerContainer extends AbstractJmsListen
 			doInvokeListener((SessionAwareMessageListener) listener, session, message);
 		}
 		else if (listener instanceof MessageListener) {
+			// listener.onMessage(message)
 			doInvokeListener((MessageListener) listener, message);
 		}
 		else if (listener != null) {

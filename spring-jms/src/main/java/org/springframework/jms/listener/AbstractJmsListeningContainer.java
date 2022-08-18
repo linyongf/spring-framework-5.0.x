@@ -16,12 +16,6 @@
 
 package org.springframework.jms.listener;
 
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import javax.jms.Connection;
-import javax.jms.JMSException;
-
 import org.springframework.beans.factory.BeanNameAware;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.context.SmartLifecycle;
@@ -31,6 +25,12 @@ import org.springframework.jms.support.JmsUtils;
 import org.springframework.jms.support.destination.JmsDestinationAccessor;
 import org.springframework.lang.Nullable;
 import org.springframework.util.ClassUtils;
+
+import javax.jms.Connection;
+import javax.jms.JMSException;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Common base class for all containers which need to implement listening
@@ -162,8 +162,11 @@ public abstract class AbstractJmsListeningContainer extends JmsDestinationAccess
 	 */
 	@Override
 	public void afterPropertiesSet() {
+		// 验证 connectionFactory
 		super.afterPropertiesSet();
+		// 验证配置文件 destination、concurrentConsumers
 		validateConfiguration();
+		// ***** 初始化 *****
 		initialize();
 	}
 
@@ -197,10 +200,12 @@ public abstract class AbstractJmsListeningContainer extends JmsDestinationAccess
 	 */
 	public void initialize() throws JmsException {
 		try {
+			// lifecycleMonitor 用于控制生命周期的同步处理
 			synchronized (this.lifecycleMonitor) {
 				this.active = true;
 				this.lifecycleMonitor.notifyAll();
 			}
+			// ***************
 			doInitialize();
 		}
 		catch (JMSException ex) {
@@ -520,6 +525,7 @@ public abstract class AbstractJmsListeningContainer extends JmsDestinationAccess
 	protected final boolean rescheduleTaskIfNecessary(Object task) {
 		if (this.running) {
 			try {
+				// ***** 开启一个线程执行 Runnable(this.taskExecutor.execute((Runnable) task)) ******
 				doRescheduleTask(task);
 			}
 			catch (RuntimeException ex) {
