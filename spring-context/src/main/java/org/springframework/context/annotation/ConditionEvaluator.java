@@ -16,10 +16,6 @@
 
 package org.springframework.context.annotation;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
@@ -37,6 +33,10 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.MultiValueMap;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Internal class used to evaluate {@link Conditional} annotations.
@@ -91,6 +91,8 @@ class ConditionEvaluator {
 		}
 
 		List<Condition> conditions = new ArrayList<>();
+		// ********* condition 的获取，因为代码走到这里已经是对某一个特定类的解析，metadata 中包含了完整的配置类信息，只要通过
+		// metadata.getAllAnnotationAttributes(Conditional.class.getName(), true) 即可获取 **********
 		for (String[] conditionClasses : getConditionClasses(metadata)) {
 			for (String conditionClass : conditionClasses) {
 				Condition condition = getCondition(conditionClass, this.context.getClassLoader());
@@ -105,6 +107,8 @@ class ConditionEvaluator {
 			if (condition instanceof ConfigurationCondition) {
 				requiredPhase = ((ConfigurationCondition) condition).getConfigurationPhase();
 			}
+			// ******** condition 的运行匹配 -> condition.matches(this.context, metadata)， 如果配置为
+			// @ConditionalOnProperty 此时 condition 对应的运行态类为 OnPropertyCondition *********
 			if ((requiredPhase == null || requiredPhase == phase) && !condition.matches(this.context, metadata)) {
 				return true;
 			}
