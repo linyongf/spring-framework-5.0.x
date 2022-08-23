@@ -872,6 +872,10 @@ public abstract class AbstractBeanFactory extends FactoryBeanRegistrySupport imp
 			return null;
 		}
 		String result = value;
+		// StringValueResolver 功能实现依赖 Spring 的切入点是 PropertySourcesPlaceholderConfigurer，
+		// PropertySourcesPlaceholderConfigurer 间接实现了 BeanFactoryPostProcessor 接口，从而利用实现对外扩展函数
+		// postProcessBeanFactory 来进行对 Spring 的扩展，通过对 postProcessBeanFactory 函数入口的分析了解 StringValueResolver
+		// 初始化的全过程
 		for (StringValueResolver resolver : this.embeddedValueResolvers) {
 			result = resolver.resolveStringValue(result);
 			if (result == null) {

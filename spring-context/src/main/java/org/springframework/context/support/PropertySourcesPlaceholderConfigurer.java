@@ -16,24 +16,18 @@
 
 package org.springframework.context.support;
 
-import java.io.IOException;
-import java.util.Properties;
-
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanInitializationException;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.config.PlaceholderConfigurerSupport;
 import org.springframework.context.EnvironmentAware;
-import org.springframework.core.env.ConfigurablePropertyResolver;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.MutablePropertySources;
-import org.springframework.core.env.PropertiesPropertySource;
-import org.springframework.core.env.PropertySource;
-import org.springframework.core.env.PropertySources;
-import org.springframework.core.env.PropertySourcesPropertyResolver;
+import org.springframework.core.env.*;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.StringValueResolver;
+
+import java.io.IOException;
+import java.util.Properties;
 
 /**
  * Specialization of {@link PlaceholderConfigurerSupport} that resolves ${...} placeholders
@@ -127,6 +121,19 @@ public class PropertySourcesPlaceholderConfigurer extends PlaceholderConfigurerS
 	@Override
 	public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
 		if (this.propertySources == null) {
+			/**
+			 * 1.初始化 MutablePropertySources
+			 * 首先通过 this.environment 来初始化 MutablePropertySources。
+			 * 说明：environment 是 Spring 属性加载的基础，里面包含了 Spring 已经加载的各个属性（Environment 是 Spring 所有配置文件
+			 * 转换为 KV 的基础，而后续的一系列操作都是在 environment 基础上做的进一步封装）, environment 的初始化过程不是通过后处理器
+			 * 机制实现的，而是通过监听器机制完成的。在 Springboot 启动过程中准备环境时发布 ApplicationEnvironmentPreparedEvent 事件，
+			 * EnvironmentPostProcessorApplicationListener 接收到事件后调用所有 EnvironmentPostProcessor.postProcessEnvironment
+			 * 方法进行后处理，比如 ActiveProfilesEnvironmentPostProcessor、ConfigDataEnvironmentPostProcessor 等，其中
+			 * ConfigDataEnvironmentPostProcessor 用来处理 springboot 配置文件中的属性，配置文件加载顺序：optional:classpath:/;optional:classpath:/config/，
+			 * optional:file:./;optional:file:./config/;optional:file:./config/xx/ , 优先级为项目根目录下大于classpath下，
+			 * 且文件夹层级越深优先级越高，另外 properties > yml
+			 * 而之所以用 MutablePropertySources 封装，是因为 MutablePropertySources 还能实现单独加载自定义的额外属性的功能。
+ 			 */
 			this.propertySources = new MutablePropertySources();
 			if (this.environment != null) {
 				this.propertySources.addLast(
@@ -154,6 +161,18 @@ public class PropertySourcesPlaceholderConfigurer extends PlaceholderConfigurerS
 			}
 		}
 
+		/**
+		 * 2.初始化 PropertySourcesPropertyResolver
+		 * 使用 PropertySourcesPropertyResolver 对 MutablePropertySources 的操作进行进一步封装，使得操作多个文件属性对外部不感知。
+		 * 当然 PropertySourcesPropertyResolver 还提供了一个重要的功能就是对变量的解析，例如，它的初始化过程会包含这样的设置：
+		 * propertyResolver.setPlaceholderPrefix(this.placeholderPrefix);
+		 * propertyResolver.setPlaceholderSuffix(this.placeholderSuffix);
+		 * propertyResolver.setValueSeparator(this.valueSeparator);
+		 * 而对于的变量定义如下：
+		 * 	public static final String DEFAULT_PLACEHOLDER_PREFIX = "${";
+		 *	public static final String DEFAULT_PLACEHOLDER_SUFFIX = "}";
+		 *	public static final String DEFAULT_VALUE_SEPARATOR = ":";
+ 		 */
 		processProperties(beanFactory, new PropertySourcesPropertyResolver(this.propertySources));
 		this.appliedPropertySources = this.propertySources;
 	}
@@ -169,9 +188,16 @@ public class PropertySourcesPlaceholderConfigurer extends PlaceholderConfigurerS
 		propertyResolver.setPlaceholderSuffix(this.placeholderSuffix);
 		propertyResolver.setValueSeparator(this.valueSeparator);
 
+		/**
+		 * 3.StringValueResolver 初始化
+		 * StringValueResolver 存在的目的主要是对解析逻辑的进一步封装，例如通过变量 ignoreUnresolvablePlaceholders 来控制是否对变量
+		 * 做解析
+		 */
 		StringValueResolver valueResolver = strVal -> {
 			String resolved = (this.ignoreUnresolvablePlaceholders ?
+					// 如果变量无法解析则忽略
 					propertyResolver.resolvePlaceholders(strVal) :
+					// 如果变量无法解析则抛异常
 					propertyResolver.resolveRequiredPlaceholders(strVal));
 			if (this.trimValues) {
 				resolved = resolved.trim();
@@ -179,6 +205,11 @@ public class PropertySourcesPlaceholderConfigurer extends PlaceholderConfigurerS
 			return (resolved.equals(this.nullValue) ? null : resolved);
 		};
 
+		/**
+		 * 4.StringValueResolver 注册
+		 * 最后将 StringValueResolver 实例注册到单例 ConfigurableListableBeanFactory 中，也就是在真正解析变量时使用的
+		 * StringValueResolver 实例。
+ 		 */
 		doProcessProperties(beanFactoryToProcess, valueResolver);
 	}
 

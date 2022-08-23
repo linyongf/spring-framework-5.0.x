@@ -546,7 +546,7 @@ public abstract class AbstractApplicationContext extends DefaultResourceLoader
 				initApplicationEventMulticaster();
 
 				// Initialize other special beans in specific context subclasses.
-				// 留给子类来初始化其它的 Bean
+				// 留给子类来初始化其它的 Bean, Springboot 内嵌 web 容器就是通过扩展该方法实现
 				onRefresh();
 
 				// Check for listener beans and register them.
